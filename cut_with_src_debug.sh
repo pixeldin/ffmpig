@@ -37,6 +37,14 @@ function get_file_size() {
     fi
 }
 
+function llprocess() {
+    # handle key frame
+    
+    # handle no-key frame
+    
+    # merge
+}
+
 log "Pixel #Job with multiple segment index: [${m}], origin video: ${o}." 
 
 
@@ -60,21 +68,12 @@ do
     log "====== Cut for ${o} from ${eles[0]} to ${eles[1]}_${idx}, 时长: ${diff}(秒)."
     total_ts=$((total_ts+diff))
 
-    #ffmpeg -ss ${eles[0]} -to ${eles[1]} -i ${o}.mp4 -c copy ${o}-grep-${idx}.mp4
-    # https://stackoverflow.com/questions/45004159/ffmpeg-ss-and-t-for-cutting-mp3
-    #if [ ${diff} -le 55 ] ; then
-      # 防止丢帧
-      # ffmpeg -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -c copy -async 1 ${o}-grep-${idx}.mp4
-    # 关键帧截取 -hwaccel cuvid -force_key_frames 'expr:gte(t,n_forced*2)' -c copy
-    #ffmpeg -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -c copy ${o}-grep-${idx}.mp4
-    #ffmpeg -hide_banner -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -copyts -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 ${o}-grep-${idx}.mp4
-    ffmpeg -hide_banner -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -avoid_negative_ts 1 -copyts -start_at_zero -force_key_frames:v "expr:gte(t,n_forced/50)" -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 ${o}-grep-${idx}.mp4
+    #TODO Replace with lossless logic / params: src, from, to, idx
+    #llprocess ${o}.mp4 ${eles[0]} ${eles[1]} ${idx}
+
+    #ffmpeg -hide_banner -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -avoid_negative_ts 1 -copyts -start_at_zero -force_key_frames:v "expr:gte(t,n_forced/50)" -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 ${o}-grep-${idx}.mp4
     #ffmpeg -i ${o}.mp4 -ss ${eles[0]} -to ${eles[1]} -c copy ${o}-grep-${idx}.mp4
     sleep 1s 
-    #else
-      # 长片段忽略精确
-    #  ffmpeg -ss ${eles[0]} -to ${eles[1]} -i ${o}.mp4 -async 1 -c copy ${o}-grep-${idx}.mp4
-    #fi
 done
 
 # 将秒数转换为分钟和秒钟
