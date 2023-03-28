@@ -34,10 +34,3 @@ except KeyboardInterrupt:
     print("复制列表结果:\n"+string_to_print)
 
     time.sleep(500)
-
-    # 将字符串数组中的所有元素连接成一个字符串
-	# string_to_write = "\n".join(clipboard_history)
-
-	# 打开文件并写入字符串
-	# with open(r'E:\template\vr_ch\debug\py\py_clipboard_log.txt', 'w') as file:
-		# file.write(string_to_write)

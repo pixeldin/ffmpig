@@ -23,7 +23,7 @@ Grep From (`A.mp4`+`B.mp4`) ==> `C.mp4`
 3. `ffmpeg -hide_banner -ss '$TA' -i 'input.mp4' -ss 0 -t '$NK_S' -map '0:0' '-c:0' h264 '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale 90000 -f mp4 -y 'smartcut-segment-encode-0.mp4'`
 
 ### Merge 1-2
-echo -e "file 'file:smartcut-segment-encode-0.mp4'\nfile 'file:smartcut-segment-copy-0.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y 'output-$TA-$TB.mp4'
+`echo -e "file 'file:smartcut-segment-encode-0.mp4'\nfile 'file:smartcut-segment-copy-0.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y 'output-$TA-$TB.mp4'`
 
 ## Reference
 Thanks from LosslessCut :)
