@@ -44,7 +44,7 @@ TR=$(get_total_rate_of)
 function get_file_size() {
   if [ -f "$1" ]; then
     local size=$(du -h "$1" | cut -f 1)
-    echo "大小: $size"
+    echo "Size: $size"
   else
     echo "file not exists."
   fi
@@ -153,7 +153,7 @@ for cp in $seg; do
   #end=$(date +%s -d ${eles[1]})
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
-  log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]}, 时长: ${diff}(秒)."
+  log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]}, duration: ${diff}(s)."
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx
@@ -169,7 +169,7 @@ log "=============Merge for partitions==============="
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-log "###### Done for grep ${o}, 总时长:${total_ts}(秒) = ${minutes}分${seconds}秒 . \n"
+log "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
 
@@ -194,19 +194,16 @@ if [ $idx -lt 2 ]; then
   exit 0
 fi
 
-#debug point
-exit 0
-
 # 批量合并
 #(for i in $(seq 1 ${idx}); do echo "file file:'${o}-grep-${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -vcodec copy -acodec copy ${o}-with_total_${idx}_tocut.mp4
 (for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -c copy ${o}-with_total_${idx}_tocut.mp4
 
-log "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}分${seconds}秒 . \n"
+log "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
 # 归档临时文件
-#rm -f ${o}-grep-*.mp4
-mkdir -p seg_list_${o}
-mv ${o}-p*.mp4 seg_list_${o}
+rm -f ${o}-p*.mp4
+#mkdir -p seg_list_${o}
+#mv ${o}-p*.mp4 seg_list_${o}
 
 # 压缩视频
 compress ${o}-with_total_${idx}_tocut.mp4
