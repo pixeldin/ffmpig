@@ -1,45 +1,29 @@
-# ffmpeg 剪切片段逻辑
-Grep From (`A.mp4`+`B.mp4`) ==> `C.mp4`
+# 项目名称
+ffmpig
 
-## For A (源文件)
-- Grep
-- cover
+## 介绍
+该项目是一个使用 `shell` 集成 `FFmpeg` 进行视频剪切和压缩的工具。它能够精准地在关键帧附近进行切割，并解决多段视频剪切音画不同步的问题。同时，它还会自动合并多段视频片段，并对最终输出视频进行压缩处理，以减小文件大小。
 
-## For B (已加工) 
-- Grep if necessary, then cover again
+## 安装
+下载本项目源代码:
+git clone https://github.com/pixeldin/ffmpig.git
+### 前置程序
+Shell 环境（支持 Bash）
+FFmpeg 4.0及以上版本
 
-## Merge A+B to C
-
-### Grep-1 [关键帧+目标时长后段]提取 (TA之后的关键帧-TB)
-提取片段思路: From TA to TB  
-1. 根据时间片分别将`$TB`,`$TB`转成秒数 `$AS`,`$BS`
-2. 使用ffprobe导出关键帧   
-
+## 使用方法
 ```
-ffprobe -v error -read_intervals '$AS%$BS' -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv 'B.mp4' > $AS_$BS_PTS_REC.csv
+./cut_with_src_local.sh -o <video> -m <segments>
 ```
-3. 从csv文件找出`$AS`时间点后面最近关键帧的位置`$K_AS`作为起点
-4. 提取 (`$BS` - `$K_AS`)差值`MS`作为-t参数的时长  
+### 示例：
+```
+# 对input.mp4文件,从1分30秒-2分30秒 和3分30秒-5分20秒 选择剪切并合并
+./cut_with_src_local.sh -o input -m 00:01:23,00:02:30+00:03:30,00:05:20
+```
+该命令会将输入视频文件根据给定的视频片段进行剪切，最终会将这些视频片段自动合并，生成一个包含所有视频片段的完整视频，并对其进行压缩处理。
+### 参数说明
+-o <output_prefix>：输出文件前缀(去掉mp4)
+-m <segments>：视频片段，格式为start1:end1+start2:end2+...，以+号分隔不同的视频片段，以,号分隔开始时间和结束时间（例如00:01:23,00:02:30+00:02:30,00:02:40表示剪切从1分23秒到2分30秒的视频片段和从2分30秒到2分40秒的视频片段）。
 
-```
-ffmpeg -hide_banner -ss '$K_AS' -i 'input.mp4' -t '$MS' -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y 'smartcut-segment-copy-0.mp4'
-```
-
-### 查看总比特率
-`$TR`=`ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 input.mp4`
-
-### Grep-2 [目标时长前段+(非关键帧)最近点]提取 (TA-TA之后的非关键帧)
-1. 从csv文件找出`K_AS`关键帧点**前**最近的非关键帧 `NK_BS`作为终点  
-2. 计算关键帧前补上时长: (`$NK_BS` - `$TA`)差值`$NK_S`  
-3. 提取目标起点处到首个关键帧前的片段  
-
-```
-ffmpeg -hide_banner -ss '$TA' -i 'input.mp4' -ss 0 -t '$NK_S' -map '0:0' '-c:0' h264 '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale 90000 -f mp4 -y 'smartcut-segment-encode-0.mp4'
-```
-
-### Merge 1-2
-```
-echo -e "file 'file:encode.mp4'\nfile 'file:copy.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y partititon.mp4
-```
 ## Reference
 Thanks from LosslessCut :)
