@@ -8,8 +8,8 @@ ffmpig
 下载本项目源代码:
 git clone https://github.com/pixeldin/ffmpig.git
 ### 前置程序
-Shell 环境（支持 Bash）
-FFmpeg 4.0及以上版本
+Shell 环境（支持 Bash）  
+FFmpeg 6.0及以上版本
 
 ## 使用方法
 ```

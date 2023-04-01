@@ -77,16 +77,17 @@ function grep_for_key_and_before() {
     prev=$(echo "$row" | awk -F ',' '{printf "%.6f", $2}')
   done
 
-  if [ -z $BEF_KEY_FRAME ]; then
+  # 当前秒关键帧的前一帧不在同一秒,则忽略
+  if [ -z "$BEF_KEY_FRAME" ] || [ $(echo "$BEF_KEY_FRAME <= $start" | bc) -eq 1 ]; then
+    log "Second time at $start(s) >= $BEF_KEY_FRAME(BEF_KEY_FRAME), reset as -1"
     BEF_KEY_FRAME="-1"
   fi
 
-  log "Pts $1(s) result info: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
+  log "Ready to process $1(s) result info: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
 }
 
 # cut from src $K_FRAME $end
 function cut_after() {
-
   local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')  
   #echo "After cut duration: $duration, prefix: $FILE_PREFIX"
   ffmpeg -hide_banner -ss $1 -i $FILE_PREFIX.mp4 -t $duration -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4
@@ -116,7 +117,8 @@ function loss_less_process() {
 
   # handle no-key frame
   if [ "-1" = "$BEF_KEY_FRAME" ]; then
-    log "No need to cut p${idx} before key, mark as total segment, from $1(s)-$2(s)."
+    log "No need to cut p${idx}'s frame before keyframe, \
+    mark as total segment, from $1[$K_FRAME](s)-$2(s)."
     # rename single segment
     mv $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 $FILE_PREFIX-p${idx}.mp4
     return 0
@@ -124,7 +126,7 @@ function loss_less_process() {
 
   cut_before $1 $BEF_KEY_FRAME
 
-  log "About to merge $FILE_PREFIX-smartcut-segment-encoded-tmp.mp4 + $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 ==> $FILE_PREFIX-p${idx}_tmp.mp4"
+  #log "About to merge $FILE_PREFIX-smartcut-segment-encoded-tmp.mp4 + $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 ==> $FILE_PREFIX-p${idx}_tmp.mp4"
 
   # merge
   merge_nokey_before_with_key $FILE_PREFIX-smartcut-segment-encoded-tmp $FILE_PREFIX-smartcut-segment-copyed-tmp $idx
@@ -153,7 +155,8 @@ for cp in $seg; do
   #end=$(date +%s -d ${eles[1]})
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
-  log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]}, duration: ${diff}(s)."
+  log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]},\
+      idx: #$idx, duration: $(($diff / 60))min$(($total_ts % 60))s."
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx

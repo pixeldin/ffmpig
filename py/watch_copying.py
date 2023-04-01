@@ -92,3 +92,4 @@ except KeyboardInterrupt:
     # string_to_print = "\n".join(clipboard_history)
     print("\n复制列表结果:\n"+join_array_elements(clipboard_history))
     print("==总时长: "+format_time(total_s))
+    time.sleep(3600)
