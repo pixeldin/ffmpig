@@ -33,6 +33,13 @@ function log() {
   echo -e "${timestamp} ${input_string}" >>${o}_cut.log
 }
 
+function break_for_debug() {
+  # debug point
+  echo "debug point, exit!"
+  log "debug point, exit!"
+  exit -1
+}
+
 # $filename
 function get_total_rate_of() {
   echo $(ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.mp4)
@@ -177,34 +184,30 @@ seconds=$(($total_ts % 60))
 log "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
-
-  # debug point
-  #echo "debug point, exit!"
-  #exit -1
-
   log "Ready to compress video: $1"
+  # -preset [fast/veryfast/superfast/ultrafast] 画质逐级降低,压缩比逐级下降 
+  # -vsync 2 参数启用恒定帧率模式，即重新计算时间戳以保证音视频同步
+
   src_size_info=$(get_file_size $1)
-  # ffmpeg -i ${o}-with_total_${idx}_tocut.mp4 -vf scale=1920:1080 -preset fast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
-  # fast/veryfast/superfast 画质逐级降低,压缩比逐级下降 
-  ffmpeg -i $1 -preset superfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
-  #ffmpeg -i $1 -preset veryfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
-  size_info=$(get_file_size ${o}-with_total_${idx}_zipped.mp4)
+  #ffmpeg -i $1 -preset superfast -vf scale=1920:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  ffmpeg -i $1 -preset superfast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
   log "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }
 
 if [ $idx -lt 2 ]; then
   log "#Skip merging with single seg, exit.\n"
   # rename
-  mv ${o}-p${idx}.mp4 ${o}-with_single_tocut.mp4
+  mv ${o}-p${idx}.mp4 ${o}-single_tocut.mp4
   # compress
-  compress ${o}-with_single_tocut.mp4
-  rm ${o}-with_single_tocut.mp4
+  compress ${o}-single_tocut.mp4
+  rm ${o}-single_tocut.mp4
   exit 0
 fi
 
 # 批量合并
-#(for i in $(seq 1 ${idx}); do echo "file file:'${o}-grep-${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -vcodec copy -acodec copy ${o}-with_total_${idx}_tocut.mp4
-(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -c copy ${o}-with_total_${idx}_tocut.mp4
+#(for i in $(seq 1 ${idx}); do echo "file file:'${o}-grep-${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -vcodec copy -acodec copy ${o}-cup-${idx}_tocut.mp4
+(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -c copy ${o}-cup-${idx}_tocut.mp4
 
 log "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
@@ -214,7 +217,7 @@ rm -f ${o}-p*.mp4
 #mv ${o}-p*.mp4 seg_list_${o}
 
 # 压缩视频
-compress ${o}-with_total_${idx}_tocut.mp4
+compress ${o}-cup-${idx}_tocut.mp4
 
 # 删除剪切中间结果
-rm ${o}-with_total_${idx}_tocut.mp4
+rm ${o}-cup-${idx}_tocut.mp4
