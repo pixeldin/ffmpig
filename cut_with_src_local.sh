@@ -77,9 +77,11 @@ function grep_for_key_and_before() {
     prev=$(echo "$row" | awk -F ',' '{printf "%.6f", $2}')
   done
 
-  # 当前秒关键帧的前一帧不在同一秒,则忽略
-  if [ -z "$BEF_KEY_FRAME" ] || [ $(echo "$BEF_KEY_FRAME <= $start" | bc) -eq 1 ]; then
-    log "Second time at $start(s) >= $BEF_KEY_FRAME(BEF_KEY_FRAME), reset as -1"
+  # 当前秒关键帧的前一帧不存在同一秒或者'帧片段较短',则忽略
+  if [ -z "$BEF_KEY_FRAME" ] || [ $(echo "$BEF_KEY_FRAME <= $start" | bc) -eq 1 ] || \
+[ $(echo "$BEF_KEY_FRAME-$start <= 0.03" | bc) -eq 1 ]; then
+    log "Second time at $start(s), $BEF_KEY_FRAME(BEF_KEY_FRAME),\
+ignore before key frame, reset as -1"
     BEF_KEY_FRAME="-1"
   fi
 
@@ -118,7 +120,7 @@ function loss_less_process() {
   # handle no-key frame
   if [ "-1" = "$BEF_KEY_FRAME" ]; then
     log "No need to cut p${idx}'s frame before keyframe, \
-    mark as total segment, from $1[$K_FRAME](s)-$2(s)."
+mark as total segment, from $K_FRAME($1)-$2(s)."
     # rename single segment
     mv $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 $FILE_PREFIX-p${idx}.mp4
     return 0
@@ -156,7 +158,7 @@ for cp in $seg; do
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
   log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]},\
-      idx: #$idx, duration: $(($diff / 60))min$(($total_ts % 60))s."
+idx: #$idx, duration: $(($diff / 60))min$(($diff % 60))s."
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx
@@ -183,7 +185,9 @@ function compress() {
   log "Ready to compress video: $1"
   src_size_info=$(get_file_size $1)
   # ffmpeg -i ${o}-with_total_${idx}_tocut.mp4 -vf scale=1920:1080 -preset fast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
-  ffmpeg -i $1 -preset veryfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
+  # fast/veryfast/superfast 画质逐级降低,压缩比逐级下降 
+  ffmpeg -i $1 -preset superfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
+  #ffmpeg -i $1 -preset veryfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4
   size_info=$(get_file_size ${o}-with_total_${idx}_zipped.mp4)
   log "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }

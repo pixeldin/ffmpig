@@ -12,7 +12,7 @@ idx=1
 
 function compress {
   log "Ready to compress video: $1"
-  echo "ffmpeg -i $1 -preset fast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4"
+  echo "ffmpeg -i $1 -preset veryfast -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-with_total_${idx}_zipped.mp4"
   log "###### Done for compressing ${o}.\n"
 }
 
