@@ -193,11 +193,13 @@ log "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}m
 
 function compress() {
   log "###### Ready to compress video: $1"
-  # -preset [fast/faster/veryfast/superfast/ultrafast] 画质逐级降低,压缩比逐级下降 
+  # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
+  # 画质逐级降低,压缩比逐级下降 
 
   src_size_info=$(get_file_size $1)
   #ffmpeg -i $1 -preset superfast -vf scale=1920:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  ffmpeg -i $1 -preset veryfast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  ffmpeg -i $1 -preset faster -vf scale=2048:1080 -b:v 8000k -maxrate 9000k -bufsize 2M -c:a copy ${o}-cup-${idx}_zipped.mp4
   size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
   log "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }
