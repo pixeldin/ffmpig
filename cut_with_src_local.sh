@@ -2,17 +2,20 @@
 #set -x
 
 usage() {
-  echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33']" 1>&2
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)]" 1>&2
   exit 1
 }
 
-while getopts ":o:m:" args; do
+while getopts ":o:m:z:" args; do
   case "${args}" in
   o)
     o=${OPTARG}
     ;;
   m)
     m=${OPTARG}
+    ;;
+  z)
+    z=${OPTARG}
     ;;
   *)
     usage
@@ -40,20 +43,25 @@ function break_for_debug() {
   exit -1
 }
 
-# $filename
-function get_total_rate_of() {
-  echo $(ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.mp4)
+# 获取视频信息: $1 (option:time_base/bit_rate/codec_name)
+function get_metric_of() {
+  echo $(ffprobe -v error -select_streams v:0 -show_entries stream=$1 -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.mp4)
 }
 
 # 视频总帧数
-TR=$(get_total_rate_of)
+TR=$(get_metric_of bit_rate)
+# 视频时间基准
+TB=$(get_metric_of time_base)
+TB="${TB#*/}"
+# 视频编码格式
+CodName=$(get_metric_of codec_name)
 
 function get_file_size() {
   if [ -f "$1" ]; then
     local size=$(du -h "$1" | cut -f 1)
     echo "Size: $size"
   else
-    echo "file not exists."
+    echo "no param for get_file_size()."
   fi
 }
 
@@ -92,26 +100,26 @@ ignore before key frame, reset as -1"
     BEF_KEY_FRAME="-1"
   fi
 
-  log "Ready to process $1(s) result info: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
+  log "Grep $1(s) nearby result: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
 }
 
 # cut from src $K_FRAME $end
 function cut_after() {
   local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')  
   #echo "After cut duration: $duration, prefix: $FILE_PREFIX"
-  ffmpeg -hide_banner -ss $1 -i $FILE_PREFIX.mp4 -t $duration -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4
+  ffmpeg -hide_banner -ss $1 -i $FILE_PREFIX.mp4 -t $duration -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale $TB -f mp4 -y $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4
 }
 
 # cut from src $start $BEF_KEY_FRAME
 function cut_before() {
   local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')  
   #echo "After cut duration: $duration, prefix: $FILE_PREFIX, TR: $TR"
-  ffmpeg -hide_banner -ss $1 -i ${FILE_PREFIX}.mp4 -ss 0 -t $duration -map '0:0' '-c:0' h264 '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale 90000 -f mp4 -y $FILE_PREFIX-smartcut-segment-encoded-tmp.mp4
+  ffmpeg -hide_banner -ss $1 -i ${FILE_PREFIX}.mp4 -ss 0 -t $duration -map '0:0' '-c:0' $CodName '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale $TB -f mp4 -y $FILE_PREFIX-smartcut-segment-encoded-tmp.mp4
 }
 
 # 合并非关键帧(前)与关键帧时段(后) $encoded $coped $idx
 function merge_nokey_before_with_key() {  
-  echo -e "file 'file:${1}.mp4'\nfile 'file:${2}.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale 90000 -f mp4 -y $FILE_PREFIX-p$3.mp4
+  echo -e "file 'file:${1}.mp4'\nfile 'file:${2}.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale $TB -f mp4 -y $FILE_PREFIX-p$3.mp4
 
   log "#Finish: merge_nokey_before_with_key encoded+coped p$3"
 }
@@ -128,7 +136,7 @@ function loss_less_process() {
   if [ "-1" = "$BEF_KEY_FRAME" ]; then
     log "No need to cut p${idx}'s frame before keyframe, \
 mark as total segment, from $K_FRAME($1)-$2(s)."
-    # rename single segment
+    # rename as single segment
     mv $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 $FILE_PREFIX-p${idx}.mp4
     return 0
   fi
@@ -144,7 +152,7 @@ mark as total segment, from $K_FRAME($1)-$2(s)."
   rm $FILE_PREFIX*-smartcut-*tmp.mp4
 }
 
-log "Call job with multiple segment index: [${m}], origin video: ${o}."
+log "Call job with multiple segment index: [${m}], origin video: ${o},${z} to ziped!"
 log "#############################"
 
 # 切分片段
@@ -165,7 +173,7 @@ for cp in $seg; do
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
   log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]},\
-idx: #$idx, duration: $(($diff / 60))min$(($diff % 60))s."
+ idx: #$idx, duration: $(($diff / 60))min$(($diff % 60))s."
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx
@@ -184,30 +192,45 @@ seconds=$(($total_ts % 60))
 log "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
-  log "Ready to compress video: $1"
-  # -preset [fast/veryfast/superfast/ultrafast] 画质逐级降低,压缩比逐级下降 
-  # -vsync 2 参数启用恒定帧率模式，即重新计算时间戳以保证音视频同步
+  log "###### Ready to compress video: $1"
+  # -preset [fast/faster/veryfast/superfast/ultrafast] 画质逐级降低,压缩比逐级下降 
 
   src_size_info=$(get_file_size $1)
   #ffmpeg -i $1 -preset superfast -vf scale=1920:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  ffmpeg -i $1 -preset superfast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  ffmpeg -i $1 -preset veryfast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
   size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
   log "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }
 
 if [ $idx -lt 2 ]; then
-  log "#Skip merging with single seg, exit.\n"
-  # rename
-  mv ${o}-p${idx}.mp4 ${o}-single_tocut.mp4
+  log "#Skip merging with single seg, check the compress's necessary."
+  single_ret="${o}-single_tozip"
+  if [ "$z" = "-1" ]; then
+    log "------- With one segment, and no need to compress.-------"
+    single_ret="${o}-cup-${idx}_nozip.mp4"
+    # rename and exit.
+    mv ${o}-p${idx}.mp4 $single_ret.mp4
+    exit 0
+  fi
+  
   # compress
-  compress ${o}-single_tocut.mp4
-  rm ${o}-single_tocut.mp4
+  log "------- With single seg, be ready to compress.-------"
+  # rename and zip
+  mv ${o}-p${idx}.mp4 $single_ret.mp4
+  compress $single_ret.mp4
+  rm $single_ret.mp4
   exit 0
 fi
 
 # 批量合并
-#(for i in $(seq 1 ${idx}); do echo "file file:'${o}-grep-${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -vcodec copy -acodec copy ${o}-cup-${idx}_tocut.mp4
-(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe -f concat -safe 0 -i pipe: -c copy ${o}-cup-${idx}_tocut.mp4
+ret="${o}-cup-${idx}_tozip.mp4"
+
+if [ "$z" = "-1" ]; then
+  ret="${o}-cup-${idx}_nozip.mp4"
+fi
+
+#(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
+(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f mp4 -y $ret
 
 log "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
@@ -217,7 +240,11 @@ rm -f ${o}-p*.mp4
 #mv ${o}-p*.mp4 seg_list_${o}
 
 # 压缩视频
-compress ${o}-cup-${idx}_tocut.mp4
+if [ "$z" = "-1" ]; then
+  log "${o} no need to compress, done!"
+  exit 0
+fi
 
+compress ${o}-cup-${idx}_tozip.mp4
 # 删除剪切中间结果
-rm ${o}-cup-${idx}_tocut.mp4
+rm ${o}-cup-${idx}_tozip.mp4
