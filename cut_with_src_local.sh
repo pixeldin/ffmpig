@@ -33,7 +33,7 @@ FILE_PREFIX=${o}
 function log() {
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  echo -e "${timestamp} ${input_string}" >>${o}_cut.log
+  echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
 }
 
 function break_for_debug() {
@@ -158,7 +158,6 @@ log "#############################"
 # 切分片段
 # 00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33
 seg=$(echo $m | tr "+" "\n")
-#seg=$(echo $m | sed 's/+/\n/g')
 
 idx=0
 total_ts=0

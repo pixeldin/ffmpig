@@ -1,10 +1,15 @@
 #!/bin/bash
 
+spwd=$(pwd)
 # job1
-sleep 3 &
-# job2
-sleep 3 &
+# target dir
+cd "/f/tmp/"
+echo -e "jump to $(pwd), filelist: \n$(ls)\n" | tee -a $spwd/batch.log
 
-sleep 1 
+# job2
+cd "/f/tmp/"
+echo -e "jump to $(pwd), filelist: \n$(ls)\n" | tee -a $spwd/batch.log
+
+
 wait
 echo "job list finished."
