@@ -68,7 +68,7 @@ function get_file_size() {
 # grep_for_key_and_before $timestamps
 function grep_for_key_and_before() {
   local start=$1
-  local end=$(expr "$start" + 4)
+  local end=$(expr "$start" + 5)
   log "Grep pts, from $start(s) to $end(s)"
   # 范围读取关键帧数据并解析为数组
   IFS=$'\n' input=($(ffprobe -v error -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv ${FILE_PREFIX}.mp4 | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2))
