@@ -27,19 +27,52 @@ if [ -z "${o}" ] || [ -z "${m}" ]; then
   usage
   exit -1
 fi
+# 默认需要压缩
+if [ "$z" != "-1" ]; then
+  z="yes"
+fi
 
 FILE_PREFIX=${o}
 
+######################## PixelLog ########################
 function log() {
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
 }
+function Dlog() {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  #echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
+  echo -e "\e[7;49;36m[D]\e[0m \033[36m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${o}_cut.log)
+}
+function Ilog() {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  #echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
+  echo -e "\e[7;49;32m[I]\e[0m \033[32m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${o}_cut.log)
+}
+function Wlog() {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  #echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
+  echo -e "\e[7;49;93m[W]\e[0m \033[33m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${o}_cut.log)
+}
+function Elog() {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  #echo -e "${timestamp} ${input_string}" | tee -a ${o}_cut.log
+  echo -e "\e[7;49;91m[E]\e[0m \033[31m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${o}_cut.log)
+}
+######################## PixelLog ########################
 
 function break_for_debug() {
   # debug point
-  echo "debug point, exit!"
-  log "debug point, exit!"
+  log "log point!"
+  Dlog "debug point!"
+  Ilog "Info point!"
+  Wlog "warn point!"
+  Elog "error point!"
   exit -1
 }
 
@@ -69,7 +102,7 @@ function get_file_size() {
 function grep_for_key_and_before() {
   local start=$1
   local end=$(expr "$start" + 5)
-  log "Grep pts, from $start(s) to $end(s)"
+  Dlog "Grep pts, from $start(s) to $end(s)"
   # 范围读取关键帧数据并解析为数组
   IFS=$'\n' input=($(ffprobe -v error -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv ${FILE_PREFIX}.mp4 | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2))
 
@@ -95,12 +128,12 @@ function grep_for_key_and_before() {
   # 当前秒关键帧的前一帧不存在同一秒或者'帧片段较短',则忽略
   if [ -z "$BEF_KEY_FRAME" ] || [ $(echo "$BEF_KEY_FRAME <= $start" | bc) -eq 1 ] || \
 [ $(echo "$BEF_KEY_FRAME-$start <= 0.03" | bc) -eq 1 ]; then
-    log "Second time at $start(s), $BEF_KEY_FRAME(BEF_KEY_FRAME),\
+    Wlog "Second time at $start(s), $BEF_KEY_FRAME(BEF_KEY_FRAME),\
 ignore before key frame, reset as -1"
     BEF_KEY_FRAME="-1"
   fi
 
-  log "Grep $1(s) nearby result: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
+  Dlog "Grep $1(s) nearby result: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
 }
 
 # cut from src $K_FRAME $end
@@ -121,7 +154,7 @@ function cut_before() {
 function merge_nokey_before_with_key() {  
   echo -e "file 'file:${1}.mp4'\nfile 'file:${2}.mp4'" | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale $TB -f mp4 -y $FILE_PREFIX-p$3.mp4
 
-  log "#Finish: merge_nokey_before_with_key encoded+coped p$3"
+  Dlog "#Finish: merge_nokey_before_with_key encoded+coped p$3"
 }
 
 # loss_less_process $start $end
@@ -134,7 +167,7 @@ function loss_less_process() {
 
   # handle no-key frame
   if [ "-1" = "$BEF_KEY_FRAME" ]; then
-    log "No need to cut p${idx}'s frame before keyframe, \
+    Wlog "No need to cut p${idx}'s frame before keyframe, \
 mark as total segment, from $K_FRAME($1)-$2(s)."
     # rename as single segment
     mv $FILE_PREFIX-smartcut-segment-copyed-tmp.mp4 $FILE_PREFIX-p${idx}.mp4
@@ -152,8 +185,8 @@ mark as total segment, from $K_FRAME($1)-$2(s)."
   rm $FILE_PREFIX*-smartcut-*tmp.mp4
 }
 
-log "Call job with multiple segment index: [${m}], origin video: ${o},${z} to ziped!"
-log "#############################"
+Ilog "Call job with multiple segment index: [${m}], origin video: ${o}, state about to zip? ${z}!"
+Wlog "#############################"
 
 # 切分片段
 # 00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33
@@ -171,27 +204,27 @@ for cp in $seg; do
   #end=$(date +%s -d ${eles[1]})
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
-  log "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]},\
+  Dlog "====== #${idx} Cut for ${o} from ${eles[0]} to ${eles[1]},\
  idx: #$idx, duration: $(($diff / 60))min$(($diff % 60))s."
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx
   loss_less_process $start $end
-  log "\n============================="    
+  Wlog "============================="    
 done
 
 
 # ======================子项合并==========================
-log "=============Merge for partitions==============="
+Wlog "=============Merge for partitions==============="
 
 # 将秒数转换为分钟和秒钟
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-log "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
+Wlog "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
-  log "###### Ready to compress video: $1"
+  Dlog "###### Ready to compress video: $1"
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
 
@@ -200,14 +233,14 @@ function compress() {
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
   ffmpeg -i $1 -preset faster -vf scale=2048:1080 -b:v 8000k -maxrate 9000k -bufsize 2M -c:a copy ${o}-cup-${idx}_zipped.mp4
   size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
-  log "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
+  Dlog "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }
 
 if [ $idx -lt 2 ]; then
-  log "#Skip merging with single seg, check the compress's necessary."
+  Wlog "#Skip merging with single seg, check the compress's necessary."
   single_ret="${o}-single_tozip"
   if [ "$z" = "-1" ]; then
-    log "------- With one segment, and no need to compress.-------"
+    Wlog "------- With one segment, and no need to compress.-------"
     single_ret="${o}-cup-${idx}_nozip.mp4"
     # rename and exit.
     mv ${o}-p${idx}.mp4 $single_ret.mp4
@@ -215,7 +248,7 @@ if [ $idx -lt 2 ]; then
   fi
   
   # compress
-  log "------- With single seg, be ready to compress.-------"
+  Wlog "------- With single seg, be ready to compress.-------"
   # rename and zip
   mv ${o}-p${idx}.mp4 $single_ret.mp4
   compress $single_ret.mp4
@@ -233,7 +266,7 @@ fi
 #(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f mp4 -y $ret
 
-log "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
+Wlog "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
 # 归档临时文件
 rm -f ${o}-p*.mp4
@@ -242,7 +275,7 @@ rm -f ${o}-p*.mp4
 
 # 压缩视频
 if [ "$z" = "-1" ]; then
-  log "${o} no need to compress, done!"
+  Wlog "${o} no need to compress, done!"
   exit 0
 fi
 

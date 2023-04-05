@@ -22,7 +22,31 @@ if [ -z "${m}" ] ; then
     exit -1
 fi
 
-echo "Debug #Job with multiple segment index: [${m}]" 
+# loging func
+function Dlog {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  #echo -e "\e[7;49;36m[DEBUG]\e[0m \033[36m${timestamp} ${input_string} $2\033[0m" | tee >(sed 's/\x1B\[[0-9;]*[mGK]//g' >> test.log)
+  echo -e "\e[7;49;36m[D]\e[0m \033[36m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> test.log)
+}
+function Ilog {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  # tee >(sed 's/\x1B\[[0-9;]*[mGK]//g' >> test.log)
+  echo -e "\e[7;49;32m[I]\e[0m \033[32m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> test.log)
+}
+function Elog {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  echo -e "\e[7;49;91m[E]\e[0m \033[31m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> test.log)
+}
+function log {
+  local input_string="$1"
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
+  echo -e "${timestamp} ${input_string}" | tee -a test.log
+}
+
+Dlog "Debug #Job with multiple segment index: [${m}]" 
 
 seg=$(echo $m | tr "+" "\n")
 
@@ -37,7 +61,7 @@ do
     start=$(date +%s -d ${eles[0]})
     end=$(date +%s -d ${eles[1]})
     diff=$((end-start))
-    echo "====== Cut for ${o} from ${eles[0]} to ${eles[1]}_${idx}, diff: ${diff}"
+    Ilog "====== Cut for ${o} from ${eles[0]} to ${eles[1]}_${idx}, diff: ${diff}"
     if [ ${diff} -le 45 ] ; then
       echo "====== 精确切割."
     else
@@ -48,13 +72,6 @@ do
 done
 
 
-# loging func
-function log {
-  local input_string="$1"
-  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  echo "${timestamp} ${input_string}"
-}
-
-echo $(log "hello") >> test.log
+Elog "hello"
 sleep 1s
-echo $(log "hello again 1s") >> test.log
+Elog "hello again after 1s"
