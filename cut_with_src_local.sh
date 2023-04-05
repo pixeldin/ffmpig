@@ -86,6 +86,8 @@ TR=$(get_metric_of bit_rate)
 # 视频时间基准
 TB=$(get_metric_of time_base)
 TB="${TB#*/}"
+# 视频帧率
+RFR=$(get_metric_of r_frame_rate)
 # 视频编码格式
 CodName=$(get_metric_of codec_name)
 
@@ -215,13 +217,13 @@ done
 
 
 # ======================子项合并==========================
-Wlog "=============Merge for partitions==============="
+Ilog "=============Merge for partitions==============="
 
 # 将秒数转换为分钟和秒钟
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-Wlog "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
+Ilog "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
   Dlog "###### Ready to compress video: $1"
@@ -231,13 +233,13 @@ function compress() {
   src_size_info=$(get_file_size $1)
   #ffmpeg -i $1 -preset superfast -vf scale=1920:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  ffmpeg -i $1 -preset faster -vf scale=2048:1080 -b:v 8000k -maxrate 9000k -bufsize 2M -c:a copy ${o}-cup-${idx}_zipped.mp4
+  ffmpeg -i $1 -preset faster -vf scale=2048:1080 -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy ${o}-cup-${idx}_zipped.mp4
   size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
   Dlog "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
 }
 
 if [ $idx -lt 2 ]; then
-  Wlog "#Skip merging with single seg, check the compress's necessary."
+  Dlog "#Skip merging with single seg, check the compress's necessary."
   single_ret="${o}-single_tozip"
   if [ "$z" = "-1" ]; then
     Wlog "------- With one segment, and no need to compress.-------"
@@ -248,7 +250,7 @@ if [ $idx -lt 2 ]; then
   fi
   
   # compress
-  Wlog "------- With single seg, be ready to compress.-------"
+  Ilog "------- With single seg, be ready to compress.-------"
   # rename and zip
   mv ${o}-p${idx}.mp4 $single_ret.mp4
   compress $single_ret.mp4
@@ -266,7 +268,7 @@ fi
 #(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f mp4 -y $ret
 
-Wlog "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
+Ilog "###### Done merge for ${o}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
 # 归档临时文件
 rm -f ${o}-p*.mp4
@@ -275,7 +277,7 @@ rm -f ${o}-p*.mp4
 
 # 压缩视频
 if [ "$z" = "-1" ]; then
-  Wlog "${o} no need to compress, done!"
+  Ilog "${o} no need to compress, done!"
   exit 0
 fi
 
