@@ -2,11 +2,11 @@
 #set -x
 
 usage() {
-    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)]" 1>&2
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认2048:1080)]" 1>&2
   exit 1
 }
 
-while getopts ":o:m:z:" args; do
+while getopts ":o:m:z:s:" args; do
   case "${args}" in
   o)
     o=${OPTARG}
@@ -16,6 +16,9 @@ while getopts ":o:m:z:" args; do
     ;;
   z)
     z=${OPTARG}
+    ;;
+  s)
+    s=${OPTARG}
     ;;
   *)
     usage
@@ -30,6 +33,10 @@ fi
 # 默认需要压缩
 if [ "$z" != "-1" ]; then
   z="yes"
+fi
+# 默认需要压缩
+if [ "$s" = "" ]; then
+  s="2048:1080"
 fi
 
 FILE_PREFIX=${o}
@@ -68,12 +75,10 @@ function Elog() {
 
 function break_for_debug() {
   # debug point
-  log "log point!"
-  Dlog "debug point!"
-  Ilog "Info point!"
-  Wlog "warn point!"
-  Elog "error point!"
-  exit -1
+  Dlog "For debug point"
+  Dlog "================ Val: $1"
+  Dlog "For debug point, exit"
+  exit 0
 }
 
 # 获取视频信息: $1 (option:time_base/bit_rate/codec_name)
@@ -226,24 +231,24 @@ seconds=$(($total_ts % 60))
 Ilog "###### Grep finished with ${o}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
-  Dlog "###### Ready to compress video: $1"
+  Ilog "###### Ready to compress video: $1"
+  src_size_info=$(get_file_size $1)
+
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
+  #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy cup-${o}-${idx}_zipped.mp4
+  ffmpeg -i $1 -preset faster -vf scale=$s -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${o}-${idx}_zipped.mp4
 
-  src_size_info=$(get_file_size $1)
-  #ffmpeg -i $1 -preset superfast -vf scale=1920:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  ffmpeg -i $1 -preset faster -vf scale=2048:1080 -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy ${o}-cup-${idx}_zipped.mp4
-  size_info=$(get_file_size ${o}-cup-${idx}_zipped.mp4)
-  Dlog "###### Done for compressing ${o}, Src-${src_size_info} / Zipped-${size_info}.\n"
+  size_info=$(get_file_size cup-${o}-${idx}_zipped.mp4)
+  Ilog "###### Done compressing ${o}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s.\n"
 }
 
 if [ $idx -lt 2 ]; then
   Dlog "#Skip merging with single seg, check the compress's necessary."
   single_ret="${o}-single_tozip"
   if [ "$z" = "-1" ]; then
-    Wlog "------- With one segment, and no need to compress.-------"
-    single_ret="${o}-cup-${idx}_nozip.mp4"
+    Wlog "------- With one segment, no need to compress.-------"
+    single_ret="cup-${o}-${idx}_nozip.mp4"
     # rename and exit.
     mv ${o}-p${idx}.mp4 $single_ret.mp4
     exit 0
@@ -259,10 +264,10 @@ if [ $idx -lt 2 ]; then
 fi
 
 # 批量合并
-ret="${o}-cup-${idx}_tozip.mp4"
+ret="cup-${o}-${idx}_tozip.mp4"
 
 if [ "$z" = "-1" ]; then
-  ret="${o}-cup-${idx}_nozip.mp4"
+  ret="cup-${o}-${idx}_nozip.mp4"
 fi
 
 #(for i in $(seq 1 ${idx}); do echo "file file:'${o}-p${i}.mp4'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
@@ -281,6 +286,6 @@ if [ "$z" = "-1" ]; then
   exit 0
 fi
 
-compress ${o}-cup-${idx}_tozip.mp4
+compress cup-${o}-${idx}_tozip.mp4
 # 删除剪切中间结果
-rm ${o}-cup-${idx}_tozip.mp4
+rm cup-${o}-${idx}_tozip.mp4
