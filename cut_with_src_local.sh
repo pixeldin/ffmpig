@@ -39,6 +39,12 @@ if [ "$s" = "" ]; then
   s="2048:1080"
 fi
 
+sTime=$(date)
+function PrintJobTime() {
+  eTime=$(date)
+  echo -e "\n#Job done: from $sTime to $eTime.\n"
+}
+
 FILE_PREFIX=${o}
 
 ######################## PixelLog ########################
@@ -78,6 +84,7 @@ function break_for_debug() {
   Dlog "For debug point"
   Dlog "================ Val: $1"
   Dlog "For debug point, exit"
+  PrintJobTime
   exit 0
 }
 
@@ -251,6 +258,7 @@ if [ $idx -lt 2 ]; then
     single_ret="cup-${o}-${idx}_nozip.mp4"
     # rename and exit.
     mv ${o}-p${idx}.mp4 $single_ret.mp4
+    PrintJobTime
     exit 0
   fi
   
@@ -260,6 +268,7 @@ if [ $idx -lt 2 ]; then
   mv ${o}-p${idx}.mp4 $single_ret.mp4
   compress $single_ret.mp4
   rm $single_ret.mp4
+  PrintJobTime
   exit 0
 fi
 
@@ -283,9 +292,11 @@ rm -f ${o}-p*.mp4
 # 压缩视频
 if [ "$z" = "-1" ]; then
   Ilog "${o} no need to compress, done!"
+  PrintJobTime
   exit 0
 fi
 
 compress cup-${o}-${idx}_tozip.mp4
 # 删除剪切中间结果
 rm cup-${o}-${idx}_tozip.mp4
+PrintJobTime
