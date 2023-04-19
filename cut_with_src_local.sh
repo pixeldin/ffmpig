@@ -39,10 +39,14 @@ if [ "$s" = "" ]; then
   s="2048:1080"
 fi
 
-sTime=$(date)
+sTime=$(date +%s)
 function PrintJobTime() {
-  eTime=$(date)
-  echo -e "\n#Job done: from $sTime to $eTime.\n"
+  eTime=$(date +%s)
+  pdiff=$((eTime - sTime))
+  pmin=$((pdiff / 60))
+  psec=$((pdiff % 60))
+  echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
+$(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m\n"
 }
 
 FILE_PREFIX=${o}
