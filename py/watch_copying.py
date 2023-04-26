@@ -2,8 +2,23 @@ import pyperclip
 import time
 import datetime
 from datetime import timedelta
+from colorama import init, Fore, Style
 import re
 import sys
+
+init()
+
+def print_red(text):
+    print(Fore.RED + text + Fore.RESET)
+
+def print_green(text):
+    print(Fore.GREEN + text + Fore.RESET)
+
+def print_cyan(text):
+    print(Fore.CYAN + text + Fore.RESET)
+
+def print_blue(text):
+    print(Back.BLUE + Fore.YELLOW + text + Style.RESET_ALL)
 
 def convert_time_string(time_str):
     # 首先，使用正则表达式匹配字符串中的所有数字
@@ -49,47 +64,48 @@ def format_time(seconds):
     else:
         return '{}秒'.format(s)
 
-clipboard_history = []
+while True:
 
-pyperclip.copy('')
+    clipboard_history = []
 
-i = 0
-time_format = "%H:%M:%S"
-total_s = 0
+    pyperclip.copy('')
 
-try:
-    while True:
-        # 获取当前剪贴板中的内容
-        pyperclip.waitForNewPaste()        
-        # eg: 00:00:03,00:00:41 00:01:03,00:01:11
-        clipboard_content = pyperclip.paste()
-        clipboard_content = convert_time_string(clipboard_content)
+    i = 0
+    time_format = "%H:%M:%S"
+    total_s = 0
 
-        # 如果该内容已经被记录则跳过
-        if len(clipboard_content) == 0 or clipboard_content in clipboard_history :
-            continue        
-        
-        # 将该内容添加到已记录的剪贴板内容列表中        
-        if i % 2 == 0:
-            print("From: "+clipboard_content, end=' ')
-            sys.stdout.flush()  # 刷新输出缓冲区
-            # 将时间字符串转换为datetime对象
-            from_ts = datetime.datetime.strptime(clipboard_content, time_format)            
-        else:
-            print("To: "+clipboard_content)
-            to_ts = datetime.datetime.strptime(clipboard_content, time_format)
-            # 计算时间差并输出相差的秒数
-            diff_seconds = (to_ts - from_ts).seconds
-            total_s = total_s + diff_seconds
+    try:
+        while True:
+            # 获取当前剪贴板中的内容
+            pyperclip.waitForNewPaste()
+            # eg: 00:00:03,00:00:41 00:01:03,00:01:11
+            clipboard_content = pyperclip.paste()
+            clipboard_content = convert_time_string(clipboard_content)
 
-            print("当前片段: "+format_time(diff_seconds)+",总时长: "+format_time(total_s))
+            # 如果该内容已经被记录则跳过
+            if len(clipboard_content) == 0 or clipboard_content in clipboard_history :
+                continue
 
-        i += 1
-        clipboard_history.append(clipboard_content)
-except KeyboardInterrupt:
-    # 用户按下Ctrl+C结束程序时，打印所有已记录的剪贴板内容
-	# for content in clipboard_history:
-    # string_to_print = "\n".join(clipboard_history)
-    print("\n复制列表结果:\n"+join_array_elements(clipboard_history))
-    print("==总时长: "+format_time(total_s))
-    time.sleep(3600)
+            # 将该内容添加到已记录的剪贴板内容列表中
+            if i % 2 == 0:
+                print("From: "+clipboard_content, end=' ')
+                sys.stdout.flush()  # 刷新输出缓冲区
+                # 将时间字符串转换为datetime对象
+                from_ts = datetime.datetime.strptime(clipboard_content, time_format)
+            else:
+                print("To: "+clipboard_content)
+                to_ts = datetime.datetime.strptime(clipboard_content, time_format)
+                # 计算时间差并输出相差的秒数
+                diff_seconds = (to_ts - from_ts).seconds
+                total_s = total_s + diff_seconds
+
+                print_green("当前片段: "+format_time(diff_seconds)+",总时长: "+format_time(total_s))
+
+            i += 1
+            clipboard_history.append(clipboard_content)
+    except KeyboardInterrupt:
+        # 用户按下Ctrl+C结束程序时，打印所有已记录的剪贴板内容    	
+        # string_to_print = "\n".join(clipboard_history)
+        print("===========剪切结束, 列表结果:\n"+join_array_elements(clipboard_history))
+        print_cyan("===========总时长: "+format_time(total_s))        
+        print_red("-----------------------------------------------------")
