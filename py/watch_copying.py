@@ -10,16 +10,16 @@ import os
 init()
 
 def print_red(text):
-    print(Fore.RED + text + Fore.RESET)
+    print(Style.BRIGHT + Fore.RED + text + Style.RESET_ALL)
 
 def print_green(text):
-    print('\033[7;49;32m' + text + '\033[39m')
+    print(Style.BRIGHT + '\033[7;49;32m' + text + '\033[39m' + Style.RESET_ALL)
 
 def print_cyan(text):
-    print(Fore.CYAN + text + Fore.RESET)
+    print(Style.BRIGHT + Fore.CYAN + text + Style.RESET_ALL)
 
 def print_hl(text):
-    print(Back.BLUE + Fore.YELLOW + text + Style.RESET_ALL)
+    print(Style.BRIGHT + Back.CYAN + text + Style.RESET_ALL)
 
 def convert_time_string(time_str):
     # 首先，使用正则表达式匹配字符串中的所有数字
@@ -73,7 +73,8 @@ def windows_path_to_linux_and_filename(filepath):
     linux_path = '/' + abs_path.replace('\\', '/').replace(':', '').lower()
 
     # 提取文件名
-    filename = os.path.basename(linux_path)
+    # filename = os.path.basename(linux_path)
+    filename = filepath.split(os.sep)[-1]
 
     # 提取目录路径
     dir_path = os.path.dirname(linux_path)
@@ -93,7 +94,7 @@ def is_valid_path(path):
     return True if re.match(pattern, path) else False
 
 
-print_green("请输入处理视频名称(包括路径)：")
+print_green("请输入处理视频名称(包括路径)：○( ＾皿＾)っ…")
 
 while True:
     # location = input("请输入处理视频名称(包括路径)：")
@@ -107,8 +108,8 @@ while True:
 
         # windows_path = r'E:\template\hello.mp4'
         (dir_path, filename) = windows_path_to_linux_and_filename(location)
-        print_green("记录视频: " + filename)
-        print_cyan("准备获取视频片段...")
+        print("记录视频: " + filename)
+        print_green("准备获取视频片段...")
         clipboard_history = []
 
         pyperclip.copy('')
@@ -136,23 +137,21 @@ while True:
                     # 将时间字符串转换为datetime对象
                     from_ts = datetime.datetime.strptime(clipboard_content, time_format)
                 else:
-                    print("To: "+clipboard_content)
                     to_ts = datetime.datetime.strptime(clipboard_content, time_format)
                     # 计算时间差并输出相差的秒数
                     diff_seconds = (to_ts - from_ts).seconds
                     total_s = total_s + diff_seconds
-
-                    print_green("当前片段: " + format_time(diff_seconds) + ",总时长: " + format_time(total_s))
+                    print("To: " + clipboard_content + " 当前片段: " + format_time(diff_seconds) + ", 总时长: " + format_time(total_s))
 
                 i += 1
                 clipboard_history.append(clipboard_content)
         except KeyboardInterrupt:
             # 用户按下Ctrl+C结束程序时，打印所有已记录的剪贴板内容
             # string_to_print = "\n".join(clipboard_history)
-            print_cyan("===========记录结束, 视频: " + filename +" 总时长: " + format_time(total_s) + ", 组合指令:")
-            print("cd " + dir_path)
+            print_cyan("=================记录结束, 视频: " + filename +" 总时长: " + format_time(total_s) + ", 组合指令如下○( ＾-＾)。o O 0")
+            print_hl("cd " + dir_path)
             print_hl("cut_with_src.sh -o " + filename + " -m " + join_array_elements(clipboard_history))
-            print_red("-----------------------------------------------------")
-            print_green("请输入处理视频名称(包括路径)：")
+            print_red("=======================================================================================")
+            print_green("Well done~ 请输入处理视频名称(包括路径), ○( ＾-＾)!…")
     except KeyboardInterrupt as e:
         print('Outside watch exception：', e)
