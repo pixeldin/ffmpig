@@ -45,8 +45,18 @@ function PrintJobTime() {
   pdiff=$((eTime - sTime))
   pmin=$((pdiff / 60))
   psec=$((pdiff % 60))
-  echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
+  phour=$((pmin / 60))
+  pmin=$((pmin % 60))
+
+  if [ $phour -eq 0 ]
+  then
+    echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
 $(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m\n"
+  else
+    echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
+$(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m\n"
+  fi
+
 }
 
 if [[ $o == *.* ]]; then
