@@ -82,28 +82,45 @@ function log() {
   echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
 }
 function Dlog() {
+  local func_name="${FUNCNAME[1]}"
+  if [ -z "$func_name" ]; then
+      func_name="(main)"
+  fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;36m[D]\e[0m \033[36m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  # ${BASH_SOURCE[1]}
+  echo -e "\e[7;49;36m[D]\e[0m \033[36m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
 }
 function Ilog() {
+  local func_name="${FUNCNAME[1]}"
+  if [ -z "$func_name" ]; then
+      func_name="(main)"
+  fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;32m[I]\e[0m \033[32m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  echo -e "\e[7;49;32m[I]\e[0m \033[32m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
 }
 function Wlog() {
+  local func_name="${FUNCNAME[1]}"
+  if [ -z "$func_name" ]; then
+      func_name="(main)"
+  fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;93m[W]\e[0m \033[33m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  echo -e "\e[7;49;93m[W]\e[0m \033[33m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
 }
 function Elog() {
+  local func_name="${FUNCNAME[1]}"
+  if [ -z "$func_name" ]; then
+      func_name="(main)"
+  fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;91m[E]\e[0m \033[31m${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  echo -e "\e[7;49;91m[E]\e[0m \033[31m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
 }
 ######################## PixelLog ########################
 
@@ -116,8 +133,6 @@ function break_for_debug() {
   exit 0
 }
 
-#break_for_debug $FILE_PREFIX+$FILE_SUFFIX
-
 # 获取视频信息: $1 (option:time_base/bit_rate/codec_name)
 function get_metric_of() {
   echo $(ffprobe -v error -select_streams v:0 -show_entries stream=$1 -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.${FILE_SUFFIX})
@@ -126,6 +141,7 @@ function get_metric_of() {
 # 视频总帧数
 TR=$(get_metric_of bit_rate)
 if [ "N/A" = "$TR" ]; then
+    Wlog "Lacking bit_rate of input video, try to calucate..."
     # 使用平均帧数(视频文件大小/总时长) 来替换
     output=$(ffprobe -i ${FILE_PREFIX}.${FILE_SUFFIX} -show_entries format=size,duration -v quiet -of csv="p=0")
     # 将视频大小和时长分别存储到 size 和 duration 变量中
@@ -134,6 +150,7 @@ if [ "N/A" = "$TR" ]; then
 
     # 计算帧率 TR，并输出结果
     TR=$(echo "scale=0;$size/$duration" | bc)
+    Wlog "Calucate bit_rate ret: ${TR}"
 fi
 
 # 视频时间基准
@@ -153,13 +170,53 @@ function get_file_size() {
   fi
 }
 
+KEY_AVG_GAP="0"
+# calculate_avg_keyframe_gap $inputfile
+function calculate_avg_keyframe_gap() {
+  # 读取前12秒的帧信息
+  input=$(ffprobe -v quiet -read_intervals 0%12 -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 "$1" |grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2)
+  Dlog "got $1 of of frame info:\n$input"
+
+  # 过滤出关键帧的行
+  IFS=$'\n' read -d '' -r -a keyframes <<< "$(echo "$input" | grep ",K__")"
+ 
+  # 如果没有足够关键帧，表示视频异常
+  if [ ${#keyframes[@]} -le 1 ]; then
+    Elog "No enough key_frame, input file not normal."
+    exit 0
+  fi
+
+  # 计算平均关键帧间隔
+  sum=0
+  for ((i = 1; i < ${#keyframes[@]}; i++)); do
+    prev=$(echo "${keyframes[$((i-1))]}" | cut -d ',' -f 1)
+    curr=$(echo "${keyframes[$i]}" | cut -d ',' -f 1)
+    interval=$(bc -l <<< "$curr - $prev")
+    sum=$(bc -l <<< "$sum + $interval")
+    # ==================
+    # p:packet, c:packet, interval:0, sum:0
+    #Dlog "p:$prev, c:$curr, interval:$interval, sum:$sum"
+  done
+
+  #KEY_AVG_GAP=$(bc -l <<< "$sum / (${#keyframes[@]} - 1)")
+  KEY_AVG_GAP=$(echo "scale=0; $(echo "$sum / (${#keyframes[@]} - 1)" | bc) + 0.5 / 1" | bc)
+
+  # 平均关键帧间隔秒数
+  Wlog "$1 avg keyframe's gap: $KEY_AVG_GAP"
+}
+
+
+calculate_avg_keyframe_gap ${FILE_PREFIX}.${FILE_SUFFIX}
+#break_for_debug "============Pixel break $AVG_K_GAP"
+
 # grep_for_key_and_before $timestamps
 function grep_for_key_and_before() {
   local start=$1
-  local end=$(expr "$start" + 5)
+  local end=$(expr $start + $KEY_AVG_GAP + 1)
+  #local end=$(( $start + $KEY_AVG_GAP ))
   Dlog "Grep pts, from $start(s) to $end(s)"
   # 范围读取关键帧数据并解析为数组
-  IFS=$'\n' input=($(ffprobe -v error -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv ${FILE_PREFIX}.${FILE_SUFFIX} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2))
+  IFS=$'\n' input=($(ffprobe -v quiet -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 ${FILE_PREFIX}.${FILE_SUFFIX} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2))
 
   K_FRAME=""
   BEF_KEY_FRAME=""
@@ -167,17 +224,23 @@ function grep_for_key_and_before() {
   local prev=""
   for i in "${!input[@]}"; do
     row="${input[$i]}"    
-    col=$(echo "$row" | awk -F ',' '{printf "%.6f,%s", $2, $3}')
+    col=$(echo "$row" | awk -F ',' '{printf "%.6f,%s", $1, $2}')
     col1=$(echo "$col" | awk -F ',' '{print $1}')
     col2=$(echo "$col" | awk -F ',' '{print $2}')
+
+    # debug
+    #Dlog "--------------------"
+    #Dlog "row: $row"
+    #Dlog "col: $col, col1: $col1, col2: $col2"
     
     # should prepare bc.exe extention first
     if [[ $col2 == *"K"* && $(echo "$col1 >= $start" | bc) -eq 1 ]]; then
       K_FRAME=$col1
       BEF_KEY_FRAME=$prev
+      Wlog "From $start(s) to $end(s), got K_FRAME: $K_FRAME, BEF_KEY_FRAME: $BEF_KEY_FRAME"
       break
     fi
-    prev=$(echo "$row" | awk -F ',' '{printf "%.6f", $2}')
+    prev=$(echo "$row" | awk -F ',' '{printf "%.6f", $1}')
   done
 
   # 当前秒关键帧的前一帧不存在同一秒或者'帧片段较短',则忽略
@@ -266,12 +329,11 @@ for cp in $seg; do
 
   #lossless logic / params: src, from, to, idx
   loss_less_process $start $end
-  Wlog "============================="    
 done
 
 
 # ======================子项合并==========================
-Ilog "=============Merge for partitions==============="
+Ilog "=============Be ready to merge for partitions==============="
 
 # 将秒数转换为分钟和秒钟
 minutes=$(($total_ts / 60))
@@ -280,7 +342,7 @@ seconds=$(($total_ts % 60))
 Ilog "###### Grep finished with ${FILE_PREFIX}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
 
 function compress() {
-  Ilog "###### Ready to compress video: $1"
+  Ilog "====== Ready to compress video: $1"
   src_size_info=$(get_file_size $1)
 
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
@@ -289,7 +351,7 @@ function compress() {
   ffmpeg -i $1 -preset faster -vf scale=$s -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
-  Ilog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s.\n"
+  Ilog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
 }
 
 if [ $idx -lt 2 ]; then
