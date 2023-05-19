@@ -174,7 +174,7 @@ KEY_AVG_GAP="0"
 # calculate_avg_keyframe_gap $inputfile
 function calculate_avg_keyframe_gap() {
   # 读取前12秒的帧信息
-  input=$(ffprobe -v quiet -read_intervals 0%12 -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 "$1" |grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2)
+  input=$(ffprobe -v quiet -read_intervals 0%12 -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 "$1" |grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1)
   Dlog "got $1 of of frame info:\n$input"
 
   # 过滤出关键帧的行
@@ -216,7 +216,7 @@ function grep_for_key_and_before() {
   #local end=$(( $start + $KEY_AVG_GAP ))
   Dlog "Grep pts, from $start(s) to $end(s)"
   # 范围读取关键帧数据并解析为数组
-  IFS=$'\n' input=($(ffprobe -v quiet -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 ${FILE_PREFIX}.${FILE_SUFFIX} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 2))
+  IFS=$'\n' input=($(ffprobe -v quiet -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 ${FILE_PREFIX}.${FILE_SUFFIX} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1))
 
   K_FRAME=""
   BEF_KEY_FRAME=""
@@ -389,9 +389,9 @@ fi
 Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
 
 # 归档临时文件
-rm -f ${FILE_PREFIX}-p*.${FILE_SUFFIX}
 #mkdir -p seg_list_${FILE_PREFIX}
 #mv ${FILE_PREFIX}-p*.${FILE_SUFFIX} seg_list_${FILE_PREFIX}
+rm -f ${FILE_PREFIX}-p*.${FILE_SUFFIX}
 
 # 压缩视频
 if [ "$z" = "-1" ]; then
