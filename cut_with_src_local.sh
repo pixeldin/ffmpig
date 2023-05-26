@@ -2,23 +2,23 @@
 #set -x
 
 usage() {
-    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认2048:1080)]" 1>&2
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认2048:1152)]" 1>&2
   exit 1
 }
 
 while getopts ":o:m:z:s:" args; do
   case "${args}" in
   o)
-    o=${OPTARG}
+    input=${OPTARG}
     ;;
   m)
-    m=${OPTARG}
+    segs=${OPTARG}
     ;;
   z)
-    z=${OPTARG}
+    zip=${OPTARG}
     ;;
   s)
-    s=${OPTARG}
+    scale=${OPTARG}
     ;;
   *)
     usage
@@ -26,17 +26,17 @@ while getopts ":o:m:z:s:" args; do
   esac
 done
 
-if [ -z "${o}" ] || [ -z "${m}" ]; then
+if [ -z "${input}" ] || [ -z "${segs}" ]; then
   usage
   exit -1
 fi
 # 默认需要压缩
-if [ "$z" != "-1" ]; then
-  z="yes"
+if [ "$zip" != "-1" ]; then
+  zip="yes"
 fi
 # 默认需要压缩
-if [ "$s" = "" ]; then
-  s="2048:1080"
+if [ "$scale" = "" ]; then
+  scale="2048:1152"
 fi
 
 sTime=$(date +%s)
@@ -59,12 +59,12 @@ $(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m\n"
 
 }
 
-if [[ $o == *.* ]]; then
+if [[ $input == *.* ]]; then
   # 带后缀则分解
-  FILE_PREFIX="${o%.*}"
-  FILE_SUFFIX="${o##*.}"
+  FILE_PREFIX="${input%.*}"
+  FILE_SUFFIX="${input##*.}"
 else
-  FILE_PREFIX=${o}
+  FILE_PREFIX=${input}
   # 默认使用mp4后缀
   FILE_SUFFIX="mp4"
 fi
@@ -303,13 +303,13 @@ mark as total segment, from $K_FRAME($1)-$2(s)."
   rm $FILE_PREFIX*-smartcut-*tmp.${FILE_SUFFIX}
 }
 
-#echo -e "\n\e[31;40mfilename: $o, suffix: $FILE_SUFFIX\e[0m\n"
-Ilog "Call job with multiple segment index: [${m}], origin video: ${FILE_PREFIX}.${FILE_SUFFIX}, state about to zip? ${z}!"
+#echo -e "\n\e[31;40mfilename: $input, suffix: $FILE_SUFFIX\e[0m\n"
+Ilog "Call job with multiple segment index: [${segs}], origin video: ${FILE_PREFIX}.${FILE_SUFFIX}, state of compress: ${zip}!"
 Wlog "#############################"
 
 # 切分片段
 # 00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33
-seg=$(echo $m | tr "+" "\n")
+seg=$(echo $segs | tr "+" "\n")
 
 idx=0
 total_ts=0
@@ -348,7 +348,7 @@ function compress() {
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
-  ffmpeg -i $1 -preset faster -vf scale=$s -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
+  ffmpeg -i $1 -preset faster -vf scale=$scale -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
   Ilog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
@@ -357,7 +357,7 @@ function compress() {
 if [ $idx -lt 2 ]; then
   Dlog "#Skip merging with single seg, check the compress's necessary."
   single_ret="${FILE_PREFIX}-single_tozip"
-  if [ "$z" = "-1" ]; then
+  if [ "$zip" = "-1" ]; then
     Wlog "------- With one segment, no need to compress.-------"
     single_ret="cup-${FILE_PREFIX}-${idx}_nozip.${FILE_SUFFIX}"
     # rename and exit.
@@ -379,7 +379,7 @@ fi
 # 批量合并
 ret="cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}"
 
-if [ "$z" = "-1" ]; then
+if [ "$zip" = "-1" ]; then
   ret="cup-${FILE_PREFIX}-${idx}_nozip.${FILE_SUFFIX}"
 fi
 
@@ -394,7 +394,7 @@ Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total t
 rm -f ${FILE_PREFIX}-p*.${FILE_SUFFIX}
 
 # 压缩视频
-if [ "$z" = "-1" ]; then
+if [ "$zip" = "-1" ]; then
   Ilog "${FILE_PREFIX} no need to compress, done!"
   PrintJobTime
   exit 0
