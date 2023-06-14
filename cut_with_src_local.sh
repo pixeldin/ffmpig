@@ -2,7 +2,7 @@
 #set -x
 
 usage() {
-    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认2048:1152)]" 1>&2
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)]" 1>&2
   exit 1
 }
 
@@ -33,10 +33,6 @@ fi
 # 默认需要压缩
 if [ "$zip" != "-1" ]; then
   zip="yes"
-fi
-# 默认需要压缩
-if [ "$scale" = "" ]; then
-  scale="2048:1152"
 fi
 
 sTime=$(date +%s)
@@ -138,6 +134,25 @@ function get_metric_of() {
   echo $(ffprobe -v error -select_streams v:0 -show_entries stream=$1 -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.${FILE_SUFFIX})
 }
 
+# 获取源分辨率宽高, 如果大于2048则维持原宽高比进行压缩
+function scale_transform() {
+  wah=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 ${FILE_PREFIX}.${FILE_SUFFIX})
+  width=$(echo $wah | cut -d 'x' -f 1)
+  height=$(echo $wah | cut -d 'x' -f 2)
+
+  new_width=$width
+  new_height=$height
+  Ilog "${FILE_PREFIX}.${FILE_SUFFIX} origin scale info: Width / Height = $width / $height"
+  # 判断是否需要调整宽高比
+  if [ $width -gt 2048 ]; then
+    new_width=2048
+    new_height=$(( $height * $new_width / $width ))
+    Wlog "${FILE_PREFIX}.${FILE_SUFFIX} transformed scale info: Width / Height = $new_width / $new_height"
+  fi
+
+  echo "${new_width}:${new_height}"
+}
+
 # 视频总帧数
 TR=$(get_metric_of bit_rate)
 if [ "N/A" = "$TR" ]; then
@@ -160,6 +175,14 @@ TB="${TB#*/}"
 RFR=$(get_metric_of r_frame_rate)
 # 视频编码格式
 CodName=$(get_metric_of codec_name)
+# 分辨率信息
+
+# 默认维持原宽高比 (宽小于2048)
+if [ "$scale" = "" ]; then
+  # 2048:1152
+  #scale="2048:1024"
+  scale=$(scale_transform)
+fi
 
 function get_file_size() {
   if [ -f "$1" ]; then
@@ -175,7 +198,7 @@ KEY_AVG_GAP="0"
 function calculate_avg_keyframe_gap() {
   # 读取前12秒的帧信息
   input=$(ffprobe -v quiet -read_intervals 0%12 -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 "$1" |grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1)
-  Dlog "got $1 of of frame info:\n$input"
+  Dlog "got $1 of of frame array:\n$input"
 
   # 过滤出关键帧的行
   IFS=$'\n' read -d '' -r -a keyframes <<< "$(echo "$input" | grep ",K__")"
@@ -323,7 +346,7 @@ for cp in $seg; do
   #end=$(date +%s -d ${eles[1]})
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
-  Dlog "====== #${idx} Cut for ${FILE_PREFIX} from ${eles[0]} to ${eles[1]},\
+  Ilog "====== #${idx} Cut for ${FILE_PREFIX} from ${eles[0]} to ${eles[1]},\
  idx: #$idx, duration: $(($diff / 60))min$(($diff % 60))s."
   total_ts=$((total_ts + diff))
 
@@ -333,16 +356,16 @@ done
 
 
 # ======================子项合并==========================
-Ilog "=============Be ready to merge for partitions==============="
+Dlog "=============Be ready to merge for partitions==============="
 
 # 将秒数转换为分钟和秒钟
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-Ilog "###### Grep finished with ${FILE_PREFIX}, total duration:${total_ts}(s) = ${minutes}min${seconds}s . \n"
+Ilog "###### Grep finished with ${FILE_PREFIX}, total duration:${total_ts}(s) = ${minutes}min${seconds}s."
 
 function compress() {
-  Ilog "====== Ready to compress video: $1"
+  Dlog "====== Ready to compress video: $1"
   src_size_info=$(get_file_size $1)
 
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
@@ -351,7 +374,7 @@ function compress() {
   ffmpeg -i $1 -preset faster -vf scale=$scale -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
-  Ilog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
+  Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
 }
 
 if [ $idx -lt 2 ]; then
@@ -386,7 +409,7 @@ fi
 #(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
 
-Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s . \n"
+Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s ."
 
 # 归档临时文件
 #mkdir -p seg_list_${FILE_PREFIX}
