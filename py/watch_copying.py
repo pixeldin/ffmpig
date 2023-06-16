@@ -15,6 +15,9 @@ def print_red(text):
 def print_green(text):
     print(Style.BRIGHT + '\033[7;49;32m' + text + '\033[39m' + Style.RESET_ALL)
 
+def print_yellow(text):
+    print(Style.BRIGHT + Fore.YELLOW + text + Style.RESET_ALL)
+
 def print_cyan(text):
     print(Style.BRIGHT + Fore.CYAN + text + Style.RESET_ALL)
 
@@ -96,6 +99,8 @@ def is_valid_path(path):
 
 print_green("请输入处理视频名称(包括路径)：○( ＾皿＾)っ…")
 
+tmp_path = ""
+
 while True:
     # location = input("请输入处理视频名称(包括路径)：")
     try:
@@ -149,7 +154,12 @@ while True:
             # 用户按下Ctrl+C结束程序时，打印所有已记录的剪贴板内容
             # string_to_print = "\n".join(clipboard_history)
             print_cyan("=================记录结束, 视频: " + filename +" 总时长: " + format_time(total_s) + ", 组合指令如下○( ＾-＾)。o O 0")
-            print_hl("cd " + dir_path)
+            # 同一个目录不重复输出
+            if tmp_path != dir_path:
+                print_hl("cd " + dir_path)
+                tmp_path = dir_path
+
+            print_yellow("# " + filename + ", 总时长:" + format_time(total_s) + ", 片段数量: " + str(i//2))
             print_hl("cut_with_src.sh -o " + filename + " -m " + join_array_elements(clipboard_history))
             print_red("=======================================================================================")
             print_green("Well done~ 请输入处理视频名称(包括路径), ○( ＾-＾)!…")
