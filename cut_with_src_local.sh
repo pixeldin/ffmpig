@@ -18,7 +18,7 @@ while getopts ":o:m:z:s:" args; do
     zip=${OPTARG}
     ;;
   s)
-    scale=${OPTARG}
+    resolution=${OPTARG}
     ;;
   *)
     usage
@@ -64,6 +64,8 @@ else
   # 默认使用mp4后缀
   FILE_SUFFIX="mp4"
 fi
+
+FILE_NAME="${FILE_PREFIX}.${FILE_SUFFIX}"
 
 if [[ "$FILE_SUFFIX" == "mkv" ]]; then
   T_FORMAT="matroska"
@@ -122,32 +124,31 @@ function Elog() {
 
 function break_for_debug() {
   # debug point
-  Dlog "For debug point"
-  Dlog "================ Val: $1"
-  Dlog "For debug point, exit"
+  Dlog "For debug point Val --- $1"
   PrintJobTime
+  Dlog "---------------Stop here---------------"
   exit 0
 }
 
 # 获取视频信息: $1 (option:time_base/bit_rate/codec_name)
 function get_metric_of() {
-  echo $(ffprobe -v error -select_streams v:0 -show_entries stream=$1 -of default=noprint_wrappers=1:nokey=1 ${FILE_PREFIX}.${FILE_SUFFIX})
+  echo $(ffprobe -v error -select_streams v:0 -show_entries stream=$1 -of default=noprint_wrappers=1:nokey=1 ${FILE_NAME})
 }
 
 # 获取源分辨率宽高, 如果大于2048则维持原宽高比进行压缩
-function scale_transform() {
-  wah=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 ${FILE_PREFIX}.${FILE_SUFFIX})
+function resolution_transform() {
+  wah=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 ${FILE_NAME})
   width=$(echo $wah | cut -d 'x' -f 1)
   height=$(echo $wah | cut -d 'x' -f 2)
 
   new_width=$width
   new_height=$height
-  Ilog "${FILE_PREFIX}.${FILE_SUFFIX} origin scale info: Width / Height = $width / $height"
+  Ilog "${FILE_NAME} origin resolution info: Width / Height = $width / $height"
   # 判断是否需要调整宽高比
   if [ $width -gt 2048 ]; then
     new_width=2048
     new_height=$(( $height * $new_width / $width ))
-    Wlog "${FILE_PREFIX}.${FILE_SUFFIX} transformed scale info: Width / Height = $new_width / $new_height"
+    Wlog "${FILE_NAME} transformed resolution info: Width / Height = $new_width / $new_height"
   fi
 
   echo "${new_width}:${new_height}"
@@ -158,7 +159,7 @@ TR=$(get_metric_of bit_rate)
 if [ "N/A" = "$TR" ]; then
     Wlog "Lacking bit_rate of input video, try to calucate..."
     # 使用平均帧数(视频文件大小/总时长) 来替换
-    output=$(ffprobe -i ${FILE_PREFIX}.${FILE_SUFFIX} -show_entries format=size,duration -v quiet -of csv="p=0")
+    output=$(ffprobe -i ${FILE_NAME} -show_entries format=size,duration -v quiet -of csv="p=0")
     # 将视频大小和时长分别存储到 size 和 duration 变量中
     duration=$(echo $output | cut -d ',' -f 1)
     size=$(echo $output | cut -d ',' -f 2)
@@ -178,10 +179,12 @@ CodName=$(get_metric_of codec_name)
 # 分辨率信息
 
 # 默认维持原宽高比 (宽小于2048)
-if [ "$scale" = "" ]; then
+if [ "$resolution" = "" ]; then
   # 2048:1152
-  #scale="2048:1024"
-  scale=$(scale_transform)
+  #resolution="2048:1024"
+  #resolution=$(resolution_transform)
+  resolution=$(resolution_transform | tail -n 1)
+  Wlog "================ ${FILE_NAME} transformed resolution: ${resolution} ================"
 fi
 
 function get_file_size() {
@@ -229,7 +232,7 @@ function calculate_avg_keyframe_gap() {
 }
 
 
-calculate_avg_keyframe_gap ${FILE_PREFIX}.${FILE_SUFFIX}
+calculate_avg_keyframe_gap ${FILE_NAME}
 #break_for_debug "============Pixel break $AVG_K_GAP"
 
 # grep_for_key_and_before $timestamps
@@ -239,7 +242,7 @@ function grep_for_key_and_before() {
   #local end=$(( $start + $KEY_AVG_GAP ))
   Dlog "Grep pts, from $start(s) to $end(s)"
   # 范围读取关键帧数据并解析为数组
-  IFS=$'\n' input=($(ffprobe -v quiet -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 ${FILE_PREFIX}.${FILE_SUFFIX} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1))
+  IFS=$'\n' input=($(ffprobe -v quiet -read_intervals "${start}%${end}" -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 ${FILE_NAME} | grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1))
 
   K_FRAME=""
   BEF_KEY_FRAME=""
@@ -281,14 +284,14 @@ ignore before key frame, reset as -1"
 function cut_after() {
   local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')  
   #echo "After cut duration: $duration, prefix: $FILE_PREFIX"
-  ffmpeg -hide_banner -ss $1 -i $FILE_PREFIX.${FILE_SUFFIX} -t $duration -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale $TB -f ${T_FORMAT} -y $FILE_PREFIX-smartcut-segment-copyed-tmp.${FILE_SUFFIX}
+  ffmpeg -hide_banner -ss $1 -i $FILE_NAME -t $duration -map '0:0' '-c:0' copy -map '0:1' '-c:1' copy -map_metadata 0 -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -video_track_timescale $TB -f ${T_FORMAT} -y $FILE_PREFIX-smartcut-segment-copyed-tmp.${FILE_SUFFIX}
 }
 
 # cut from src $start $BEF_KEY_FRAME
 function cut_before() {
   local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')  
   #echo "After cut duration: $duration, prefix: $FILE_PREFIX, TR: $TR"
-  ffmpeg -hide_banner -ss $1 -i ${FILE_PREFIX}.${FILE_SUFFIX} -ss 0 -t $duration -map '0:0' '-c:0' $CodName '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale $TB -f ${T_FORMAT} -y $FILE_PREFIX-smartcut-segment-encoded-tmp.${FILE_SUFFIX}
+  ffmpeg -hide_banner -ss $1 -i ${FILE_NAME} -ss 0 -t $duration -map '0:0' '-c:0' $CodName '-b:0' $TR -map '0:1' '-c:1' copy -ignore_unknown -video_track_timescale $TB -f ${T_FORMAT} -y $FILE_PREFIX-smartcut-segment-encoded-tmp.${FILE_SUFFIX}
 }
 
 # 合并非关键帧(前)与关键帧时段(后) $encoded $coped $idx
@@ -327,7 +330,7 @@ mark as total segment, from $K_FRAME($1)-$2(s)."
 }
 
 #echo -e "\n\e[31;40mfilename: $input, suffix: $FILE_SUFFIX\e[0m\n"
-Ilog "Call job with multiple segment index: [${segs}], origin video: ${FILE_PREFIX}.${FILE_SUFFIX}, state of compress: ${zip}!"
+Ilog "Call job with multiple segment index: [${segs}], origin video: ${FILE_NAME}, state of compress: ${zip}!"
 Wlog "#############################"
 
 # 切分片段
@@ -371,7 +374,7 @@ function compress() {
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
-  ffmpeg -i $1 -preset faster -vf scale=$scale -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
+  ffmpeg -i $1 -preset faster -vf scale=$resolution -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
   Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
