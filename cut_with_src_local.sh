@@ -199,7 +199,7 @@ function get_file_size() {
 KEY_AVG_GAP="0"
 # calculate_avg_keyframe_gap $inputfile
 function calculate_avg_keyframe_gap() {
-  # 读取前12秒的帧信息
+  # 读取前12秒的帧信息, 并提取关键帧位置的前4行按照时间戳排序
   input=$(ffprobe -v quiet -read_intervals 0%12 -show_packets -select_streams 0 -show_entries 'packet=pts_time,flags' -of csv=p=0 "$1" |grep -B 4 --no-group-separator "K" | sort -n -t ',' -k 1)
   Dlog "got $1 of of frame array:\n$input"
 
@@ -374,7 +374,7 @@ function compress() {
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
-  ffmpeg -i $1 -preset faster -vf scale=$resolution -b:v 8000k -maxrate 9000k -r $RFR -video_track_timescale $TB -bufsize 2M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
+  ffmpeg -i $1 -preset faster -vf scale=$resolution -b:v 9000k -maxrate 9500k -r $RFR -video_track_timescale $TB -bufsize 3M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
   Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
