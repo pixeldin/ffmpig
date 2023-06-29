@@ -16,7 +16,7 @@ def print_green(text):
     print(Style.BRIGHT + '\033[7;49;32m' + text + '\033[39m' + Style.RESET_ALL)
 
 def print_yellow(text):
-    print(Style.BRIGHT + Fore.YELLOW + text + Style.RESET_ALL)
+    print(Style.BRIGHT + Fore.YELLOW + Back.CYAN + text + Style.RESET_ALL)
 
 def print_cyan(text):
     print(Style.BRIGHT + Fore.CYAN + text + Style.RESET_ALL)
@@ -153,10 +153,10 @@ while True:
         except KeyboardInterrupt:
             # 用户按下Ctrl+C结束程序时，打印所有已记录的剪贴板内容
             # string_to_print = "\n".join(clipboard_history)
-            print_cyan("=================记录结束, 视频: " + filename +" 总时长: " + format_time(total_s) + ", 组合指令如下○( ＾-＾)。o O 0")
+            print_red("=================记录结束, 视频: " + filename +" 总时长: " + format_time(total_s) + ", 组合指令如下○( ＾-＾)。o O 0")
             # 同一个目录不重复输出
             if tmp_path != dir_path:
-                print_hl("cd " + dir_path)
+                print_hl("jump \"" + dir_path + "\"")
                 tmp_path = dir_path
 
             print_yellow("# " + filename + ", 总时长:" + format_time(total_s) + ", 片段数量: " + str(i//2))
