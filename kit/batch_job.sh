@@ -41,7 +41,7 @@ function cover_win_path() {
 spwd=$(pwd)
 
 function jump() {
-  cv_path=$(cover_win_path $1)
+  cv_path=$(cover_win_path "$1")
   cd "${cv_path}"
   # git-bash --cd="${cv_path}"
   start "" "git-bash.exe" --cd="${cv_path}"
