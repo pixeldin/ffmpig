@@ -37,6 +37,7 @@ fi
 
 sTime=$(date +%s)
 function PrintJobTime() {
+  local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
   eTime=$(date +%s)
   pdiff=$((eTime - sTime))
   pmin=$((pdiff / 60))
@@ -46,11 +47,9 @@ function PrintJobTime() {
 
   if [ $phour -eq 0 ]
   then
-    echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
-$(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m\n"
+    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
   else
-    echo -e "\n\e[31;40m#Job done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to \
-$(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m\n"
+    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
   fi
 
 }
@@ -125,7 +124,7 @@ function Elog() {
 function break_for_debug() {
   # debug point
   Dlog "For debug point Val --- $1"
-  PrintJobTime
+  PrintJobTime ${FILE_NAME}
   Dlog "---------------Stop here---------------"
   exit 0
 }
@@ -365,7 +364,7 @@ Dlog "=============Be ready to merge for partitions==============="
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-Ilog "###### Grep finished with ${FILE_PREFIX}, total duration:${total_ts}(s) = ${minutes}min${seconds}s."
+Ilog "###### Grep finished with ${FILE_PREFIX}, total video duration:${total_ts}(s) = ${minutes}min${seconds}s."
 
 function compress() {
   Dlog "====== Ready to compress video: $1"
@@ -377,7 +376,7 @@ function compress() {
   ffmpeg -i $1 -preset faster -vf scale=$resolution -b:v 9000k -maxrate 9500k -r $RFR -video_track_timescale $TB -bufsize 3M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
-  Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, duration: ${minutes}min${seconds}s."
+  Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, video duration: ${minutes}min${seconds}s."
 }
 
 if [ $idx -lt 2 ]; then
@@ -388,7 +387,7 @@ if [ $idx -lt 2 ]; then
     single_ret="cup-${FILE_PREFIX}-${idx}_nozip.${FILE_SUFFIX}"
     # rename and exit.
     mv ${FILE_PREFIX}-p${idx}.${FILE_SUFFIX} $single_ret.${FILE_SUFFIX}
-    PrintJobTime
+    PrintJobTime ${FILE_NAME}
     exit 0
   fi
   
@@ -398,7 +397,7 @@ if [ $idx -lt 2 ]; then
   mv ${FILE_PREFIX}-p${idx}.${FILE_SUFFIX} $single_ret.${FILE_SUFFIX}
   compress $single_ret.${FILE_SUFFIX}
   rm $single_ret.${FILE_SUFFIX}
-  PrintJobTime
+  PrintJobTime ${FILE_NAME}
   exit 0
 fi
 
@@ -422,11 +421,11 @@ rm -f ${FILE_PREFIX}-p*.${FILE_SUFFIX}
 # 压缩视频
 if [ "$zip" = "-1" ]; then
   Ilog "${FILE_PREFIX} no need to compress, done!"
-  PrintJobTime
+  PrintJobTime ${FILE_NAME}
   exit 0
 fi
 
 compress cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}
 # 删除剪切中间结果
 rm cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}
-PrintJobTime
+PrintJobTime ${FILE_NAME}
