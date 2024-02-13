@@ -2,7 +2,9 @@
 #set -x
 
 usage() {
+    echo "--------------------------------------------"
     echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)]" 1>&2
+    echo "--------------------------------------------"
   exit 1
 }
 
@@ -30,6 +32,7 @@ if [ -z "${input}" ] || [ -z "${segs}" ]; then
   usage
   exit -1
 fi
+
 # 默认需要压缩
 if [ "$zip" != "-1" ]; then
   zip="yes"
@@ -120,6 +123,17 @@ function Elog() {
   echo -e "\e[7;49;91m[E]\e[0m \033[31m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
 }
 ######################## PixelLog ########################
+
+# Check for seg(-m 'args') format
+pattern="^([0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{2}:[0-9]{2}:[0-9]{2})+(\+[0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{2}:[0-9]{2}:[0-9]{2})*$"
+
+if [[ $segs =~ $pattern ]]; then
+    Ilog "Segment's format checking pass, -m:[ ${segs} ]"
+else
+    Elog "Segments(-m args) format error: ${segs}"
+    usage
+    exit -1
+fi
 
 function break_for_debug() {
   # debug point
