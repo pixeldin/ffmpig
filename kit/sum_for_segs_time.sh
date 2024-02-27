@@ -70,9 +70,12 @@ for cp in $seg; do
   #end=$(date +%s -d ${eles[1]})
   end=$(echo ${eles[1]} | awk -F: '{ print ($1 * 3600) + ($2 * 60) + $3 }')
   diff=$((end - start))
-  echo "====== #${idx} from ${eles[0]} to ${eles[1]},\
- idx: #$idx, duration: $(($diff / 60)) min $(($diff % 60)) s."
+
   total_ts=$((total_ts + diff))
+  bymin=$(($total_ts / 60))
+  bysec=$(($total_ts % 60))
+  echo "====== #${idx} from ${eles[0]} to ${eles[1]},\
+ idx: #$idx, duration: $(($diff / 60)) min $(($diff % 60)) s, by now: ${bymin} min ${bysec} s."
 done
 
 # 将秒数转换为分钟和秒钟

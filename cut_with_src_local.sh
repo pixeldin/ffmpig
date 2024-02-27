@@ -378,7 +378,7 @@ Dlog "=============Be ready to merge for partitions==============="
 minutes=$(($total_ts / 60))
 seconds=$(($total_ts % 60))
 
-Ilog "###### Grep finished with ${FILE_PREFIX}, total video duration:${total_ts}(s) = ${minutes}min${seconds}s."
+Ilog "###### Grep finished with ${FILE_PREFIX}, total video duration: ${total_ts}(s) = ${minutes}min${seconds}s."
 
 function compress() {
   Dlog "====== Ready to compress video: $1"
@@ -425,7 +425,7 @@ fi
 #(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
 
-Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total ts:${total_ts} = ${minutes}min${seconds}s ."
+Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total video duration: ${total_ts} = ${minutes}min${seconds}s ."
 
 # 归档临时文件
 #mkdir -p seg_list_${FILE_PREFIX}
