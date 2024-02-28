@@ -3,6 +3,7 @@ import time
 import datetime
 from datetime import timedelta
 from colorama import init, Fore, Style, Back
+from win10toast import ToastNotifier
 import re
 import sys
 import os
@@ -101,6 +102,8 @@ print_green("请输入处理视频名称(包括路径)：○( ＾皿＾)っ…")
 
 tmp_path = ""
 
+toaster = ToastNotifier()
+
 while True:
     # location = input("请输入处理视频名称(包括路径)：")
     try:
@@ -123,6 +126,8 @@ while True:
         time_format = "%H:%M:%S"
         total_s = 0
 
+        last_paste = ""
+
         try:
             while True:
                 # 获取当前剪贴板中的内容
@@ -132,13 +137,21 @@ while True:
                 clipboard_content = convert_time_string(clipboard_content)
 
                 # 如果该内容已经被记录则跳过
-                if len(clipboard_content) == 0 or clipboard_content in clipboard_history :
+                if len(clipboard_content) == 0 or (clipboard_content in clipboard_history and last_paste == clipboard_content) :
                     continue
 
                 # 将该内容添加到已记录的剪贴板内容列表中
-                if i % 2 == 0:
-                    print("From: "+clipboard_content, end=' ')
+                if i % 2 == 0:                    
+                    print("From: " + clipboard_content, end=' ')
+                    last_paste = clipboard_content
                     sys.stdout.flush()  # 刷新输出缓冲区
+                    
+                    toaster.show_toast("From",
+                       clipboard_content,
+                       icon_path=None,
+                       duration=1.1,
+                       threaded=True)
+                    
                     # 将时间字符串转换为datetime对象
                     from_ts = datetime.datetime.strptime(clipboard_content, time_format)
                 else:
@@ -146,7 +159,15 @@ while True:
                     # 计算时间差并输出相差的秒数
                     diff_seconds = (to_ts - from_ts).seconds
                     total_s = total_s + diff_seconds
+                    
                     print("To: " + clipboard_content + " 当前片段: " + format_time(diff_seconds) + ", 总时长: " + format_time(total_s))
+                    last_paste = clipboard_content
+
+                    toaster.show_toast("End",
+                       clipboard_content + " 当前片段: " + format_time(diff_seconds) + ", 总时长: " + format_time(total_s),
+                       icon_path=None,
+                       duration=2.5,
+                       threaded=True)
 
                 i += 1
                 clipboard_history.append(clipboard_content)
@@ -165,3 +186,5 @@ while True:
             print_green("Well done~ 请输入处理视频名称(包括路径), ○( ＾-＾)!…")
     except KeyboardInterrupt as e:
         print('Outside watch exception：', e)
+        input('Press ENTER to exit')
+        sys.exit()
