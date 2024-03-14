@@ -3,12 +3,13 @@
 
 usage() {
     echo "--------------------------------------------"
-    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)]" 1>&2
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)] [-d 1 打开调试模式]" 1>&2
+    echo "[-d 1 打开调试模式(set -x)]"
     echo "--------------------------------------------"
   exit 1
 }
 
-while getopts ":o:m:z:s:" args; do
+while getopts ":o:m:z:s:d:" args; do
   case "${args}" in
   o)
     input=${OPTARG}
@@ -21,6 +22,13 @@ while getopts ":o:m:z:s:" args; do
     ;;
   s)
     resolution=${OPTARG}
+    ;;
+  d)
+    debug=${OPTARG}
+    # 调试模式
+    if [ ! -z "${debug}" ] && [ ${debug} -eq 1 ]; then
+      set -x
+    fi
     ;;
   *)
     usage
@@ -421,6 +429,9 @@ ret="cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}"
 if [ "$zip" = "-1" ]; then
   ret="cup-${FILE_PREFIX}-${idx}_nozip.${FILE_SUFFIX}"
 fi
+
+# debug
+#break_for_debug "skip_merge"
 
 #(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
