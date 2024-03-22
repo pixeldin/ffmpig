@@ -3,13 +3,12 @@
 
 usage() {
     echo "--------------------------------------------"
-    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)] [-d 1 打开调试模式]" 1>&2
-    echo "[-d 1 打开调试模式(set -x)]"
+    echo "Usage: $0 [-o 文件名前缀] [-m 切割片段, 如'00:00:03,00:00:41+00:01:03,00:01:11+00:02:30,00:02:33'] [-z 是否压缩(-1否, 默认是)] [-s 指定分辨率(默认以宽度2048按原宽高比压缩)] [-d 打开调试模式(set -x)]" 1>&2
     echo "--------------------------------------------"
   exit 1
 }
 
-while getopts ":o:m:z:s:d:" args; do
+while getopts ":o:m:z:s:d" args; do
   case "${args}" in
   o)
     input=${OPTARG}
@@ -24,11 +23,8 @@ while getopts ":o:m:z:s:d:" args; do
     resolution=${OPTARG}
     ;;
   d)
-    debug=${OPTARG}
     # 调试模式
-    if [ ! -z "${debug}" ] && [ ${debug} -eq 1 ]; then
-      set -x
-    fi
+    set -x
     ;;
   *)
     usage
@@ -43,7 +39,7 @@ fi
 
 # 默认需要压缩
 if [ "$zip" != "-1" ]; then
-  zip="yes"
+  zip="should be zipped"
 fi
 
 sTime=$(date +%s)
@@ -296,6 +292,9 @@ function grep_for_key_and_before() {
     Wlog "Second time at $start(s), $BEF_KEY_FRAME(BEF_KEY_FRAME),\
 ignore before key frame, reset as -1"
     BEF_KEY_FRAME="-1"
+    # fix for empty key_Fame
+    Dlog "Ignore before key frame, just cutting as next total seg to start with K_FRAME: $start "
+    K_FRAME=$start
   fi
 
   Dlog "Grep $1(s) nearby result: $K_FRAME(K_FRAME) / $BEF_KEY_FRAME(BEF_KEY_FRAME)"
@@ -412,7 +411,9 @@ if [ $idx -lt 2 ]; then
     PrintJobTime ${FILE_NAME}
     exit 0
   fi
-  
+  # debug 
+  #break_for_debug "skip single compressing"
+
   # compress
   Ilog "------- With single seg, be ready to compress.-------"
   # rename and zip
@@ -431,7 +432,7 @@ if [ "$zip" = "-1" ]; then
 fi
 
 # debug
-#break_for_debug "skip_merge"
+#break_for_debug "skip_merging"
 
 #(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
 (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
