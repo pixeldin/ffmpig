@@ -45,7 +45,7 @@ function jump() {
   cd "${cv_path}"
   # git-bash --cd="${cv_path}"
   start "" "git-bash.exe" --cd="${cv_path}"
-  echo -e "from $spwd jump to $(pwd), filelist: \n$(ls)\n" | tee -a $spwd/batch.log
+  echo -e "$(date -d @$sTime +"%Y-%m-%d %H:%M:%S") from $spwd jump to $(pwd), filelist: \n$(ls)\n" | tee -a $spwd/batch.log
 }
 
 ###################################################################################
