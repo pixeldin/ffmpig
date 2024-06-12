@@ -59,6 +59,28 @@ def join_array_elements(arr):
 
     return output
 
+def join_array_elements_with_sp(arr):
+    output = ""
+    count_plus = 0
+    max_plus = 2
+
+    for i in range(0, len(arr), 2):
+        if count_plus == max_plus:
+            output += "\\\n"
+            count_plus = 0
+
+        if i > 0:
+            output += "+"
+
+        output += arr[i]
+        if i + 1 < len(arr):
+            output += ","
+            output += arr[i+1]
+
+        count_plus += 1
+
+    return output
+
 def format_time(seconds):
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
@@ -181,7 +203,7 @@ while True:
                 tmp_path = dir_path
 
             print_yellow("# " + filename + ", 总时长:" + format_time(total_s) + ", 片段数量: " + str(i//2))
-            print_hl("cut_with_src.sh -o " + filename + " -m " + join_array_elements(clipboard_history))
+            print_hl("cut_with_src.sh -o " + filename + " -m " + join_array_elements_with_sp(clipboard_history))
             print_red("=======================================================================================")
             print_green("Well done~ 请输入处理视频名称(包括路径), ○( ＾-＾)!…")
     except KeyboardInterrupt as e:
