@@ -5,7 +5,7 @@ o="test"
 function log {
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  echo -e "${timestamp} ${input_string}" >> ${o}_cut.log
+  echo -e "${timestamp} ${input_string}" >> ${o}_cut.plog
 }
 
 idx=1

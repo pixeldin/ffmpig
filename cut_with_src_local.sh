@@ -32,6 +32,9 @@ while getopts ":o:m:z:s:d" args; do
   esac
 done
 
+#debug
+#echo "-m \"$segs\""
+
 if [ -z "${input}" ] || [ -z "${segs}" ]; then
   usage
   exit -1
@@ -54,9 +57,9 @@ function PrintJobTime() {
 
   if [ $phour -eq 0 ]
   then
-    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
   else
-    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+    echo -e "\n\e[37;40m[T]#Job $1 done, from $(date -d @$sTime +"%m-%d %H:%M:%S") to $(date -d @$eTime +"%H:%M:%S"), costs: ${phour}h${pmin}min${psec}s\e[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
   fi
 
 }
@@ -83,7 +86,7 @@ fi
 function log() {
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
+  echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.plog
 }
 function Dlog() {
   local func_name="${FUNCNAME[1]}"
@@ -92,9 +95,9 @@ function Dlog() {
   fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
+  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.plog
   # ${BASH_SOURCE[1]}
-  echo -e "\e[7;49;36m[D]\e[0m \033[36m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  echo -e "\e[7;49;36m[D]\e[0m \033[36m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
 }
 function Ilog() {
   local func_name="${FUNCNAME[1]}"
@@ -103,8 +106,8 @@ function Ilog() {
   fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;32m[I]\e[0m \033[32m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.plog
+  echo -e "\e[7;49;32m[I]\e[0m \033[32m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
 }
 function Wlog() {
   local func_name="${FUNCNAME[1]}"
@@ -113,8 +116,8 @@ function Wlog() {
   fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;93m[W]\e[0m \033[33m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.plog
+  echo -e "\e[7;49;93m[W]\e[0m \033[33m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
 }
 function Elog() {
   local func_name="${FUNCNAME[1]}"
@@ -123,8 +126,8 @@ function Elog() {
   fi
   local input_string="$1"
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S.%3N')"
-  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.log
-  echo -e "\e[7;49;91m[E]\e[0m \033[31m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.log)
+  #echo -e "${timestamp} ${input_string}" | tee -a ${FILE_PREFIX}_cut.plog
+  echo -e "\e[7;49;91m[E]\e[0m \033[31m[L:${BASH_LINENO[0]}-${func_name}()] ${input_string} $2\033[0m" | tee >(sed "s/\x1B\[[0-9;]*[mGK]//g; s/^/$timestamp /" >> ${FILE_PREFIX}_cut.plog)
 }
 ######################## PixelLog ########################
 
@@ -133,6 +136,8 @@ pattern="^([0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{2}:[0-9]{2}:[0-9]{2})+(\+[0-9]{2}:[0
 
 if [[ $segs =~ $pattern ]]; then
     Ilog "Segment's format checking pass, -m:[ ${segs} ]"
+    #debug
+    #exit 0
 else
     Elog "Segments(-m args) format error: ${segs}"
     usage
