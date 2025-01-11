@@ -27,6 +27,7 @@ def process_log(log_file):
     # 读取日志文件
     with open(log_file, 'r', encoding='utf-8') as file:
         for line in file:
+            #  提取目标文件
             if 'vvv=1' not in line:
                 continue
             # 提取访问时间和路径
@@ -59,7 +60,7 @@ def process_log(log_file):
             # 生成 key，作为存储访问记录的标识
             key = f"{file_path}/{mp3_filename}"
 
-            # 如果该文件之前访问过，检查时间差是否大于2分钟
+            # 如果该文件之前访问过，检查时间差是否大于 TIME_INTERVAL
             if key in mp3_access_map:
                 last_access_time = mp3_access_map[key].split(',')[-1]
                 last_access_timestamp = convert_to_timestamp(last_access_time)
@@ -122,7 +123,27 @@ def generate_statistics(mp3_access_map):
                 count, times = value
                 print(f"{indent}- {key} {count} {times}")
 
-    print_tree(frequency_map)
+    # print_tree(frequency_map)
+
+    # 递归写入文件
+    def print_tree_to_file(current_dir, indent="", file=None):
+        for key, value in current_dir.items():
+            if isinstance(value, dict):
+                # 如果是子目录，打印目录名，并递归打印其内容
+                file.write(f"{indent}- {key}:\n")
+                print_tree_to_file(value, indent + "  ", file)
+            else:
+                # 否则打印文件信息
+                count, times = value
+                file.write(f"{indent}- {key}\t\t<{count}> [{times}]\n")
+
+    # 获取当前时间
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 打开文件并写入
+    with open(r'H:\tmp\local\chfs-metric.log', 'w', encoding='utf-8') as file:
+        # 更新时间
+        file.write(f"================    {current_time}    ================\n")
+        print_tree_to_file(frequency_map, file=file)
 
 # 检查输入参数
 if len(sys.argv) != 2:
