@@ -52,13 +52,24 @@ def process_log(log_file):
             parts = mp3_dir.split('/')
             if len(parts) < 3:
                 continue
-            first_level_dir = parts[-2]  # 第2层目录
-            second_level_dir = parts[-3]  # 第3层目录
+            
+            # print(f"*** Debug *** - parts#{parts}")
+            # 找到 FILES 的索引
+            try:
+                files_index = parts.index('FILES')
+            except ValueError:
+                continue
+            
+            # 提取 FILES 之后的所有目录层级（除了最后一级，即文件对应的文件夹）
+            if files_index + 1 < len(parts):  # 确保有足够的层级
+                dir_parts = parts[files_index + 1:]  # 从 FILES 后的第一级到倒数第二级
+                file_path = '/'.join(dir_parts)
+            else:
+                continue
 
-            # 拼接前两级目录
-            file_path = f"{second_level_dir}/{first_level_dir}"
             # 生成 key，作为存储访问记录的标识
-            key = f"{file_path}/{mp3_filename}"
+            key = f"{file_path}/{mp3_filename}"            
+            # print(f"*** Debug *** - key#{key}")
 
             # 如果该文件之前访问过，检查时间差是否大于 TIME_INTERVAL
             if key in mp3_access_map:
@@ -126,24 +137,53 @@ def generate_statistics(mp3_access_map):
     # print_tree(frequency_map)
 
     # 递归写入文件
-    def print_tree_to_file(current_dir, indent="", file=None):
+    def print_tree_to_file(current_dir, file, indent="", path_prefix="/#/FILES"):
         for key, value in current_dir.items():
             if isinstance(value, dict):
                 # 如果是子目录，打印目录名，并递归打印其内容
                 file.write(f"{indent}- {key}:\n")
-                print_tree_to_file(value, indent + "  ", file)
+                # 更新路径前缀以包含当前目录
+                new_path_prefix = f"{path_prefix}/{key}"
+                print_tree_to_file(value, file, indent + "  ", new_path_prefix)
             else:
-                # 否则打印文件信息
+                # 否则打印文件信息，并为文件添加超链接
                 count, times = value
-                file.write(f"{indent}- {key}\t\t<{count}> [{times}]\n")
+                # 提取文件夹名称（去掉 .mp3 后缀，并处理 -s1 或 -s2）
+                if key.endswith(".mp3") or key.endswith(".mp4"):
+                    # 构造文件的超链接
+                    file_path = f"{path_prefix}/"
+                    file.write(f"{indent}- <a href=\"{file_path}\">{key}</a> {count} [{times}]\n")
+                else:
+                    # 非 MP3/MP4 文件保持原格式
+                    file.write(f"{indent}- {key} {count} [{times}]\n")
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 打开文件并写入
-    with open(r'H:\tmp\local\chfs-metric.log', 'w', encoding='utf-8') as file:
+    # with open(r'E:\Developer\pix-ffmpig\py\analyze\chfs-metric.html', 'w', encoding='utf-8') as file:
+    with open(r'H:\tmp\local\sum.html', 'w', encoding='utf-8') as file:
+        # html前缀
+        file.write("""<!DOCTYPE html>
+    <html>
+    <!-- TODO: 
+      - 增量统计 
+    -->
+    <head>
+        <title>Preview History</title>
+    </head>
+    <body>
+    <H2>Update by {0}</H2>
+    <pre>
+    """.format(current_time))
         # 更新时间
-        file.write(f"================    {current_time}    ================\n")
+        # file.write(f"================    {current_time}    ================\n")
         print_tree_to_file(frequency_map, file=file)
+
+        # html后缀
+        file.write("""</pre>
+        </body>
+        </html>
+        """)
 
 # 检查输入参数
 if len(sys.argv) != 2:
@@ -159,3 +199,4 @@ mp3_access_map = process_log(log_file)
 # 生成统计并排序输出
 generate_statistics(mp3_access_map)
 
+# run => python analyze.py "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log"
