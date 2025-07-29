@@ -16,8 +16,11 @@ cd /d "E:\Developer\nginx\nginx-1.22.1"
 start "" nginx.exe -c "E:\Developer\nginx\nginx-1.22.1\conf\nginx_chfs.conf"
 
 :loop
+		rem 提取目标日志
+		type "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log" | findstr "vvv=1" > "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+
     rem echo "running analyze.py"
-    python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze.py" "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log"
+    python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze.py" "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
     
     REM 等待 60 秒
     timeout /t 60 /nobreak >nul

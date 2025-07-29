@@ -15,7 +15,7 @@ def convert_to_timestamp(input_time):
         print(f"Error: Failed to convert date '{input_time}'")
         return None
 
-# 全局变量，表示时间间隔（单位：秒）
+# 全局时间间隔（单位：秒）
 TIME_INTERVAL = 1800
 # TIME_INTERVAL = 120
 
@@ -71,13 +71,13 @@ def process_log(log_file):
             key = f"{file_path}/{mp3_filename}"            
             # print(f"*** Debug *** - key#{key}")
 
-            # 如果该文件之前访问过，检查时间差是否大于 TIME_INTERVAL
+            # 如果该文件之前记录访问过，检查时间差是否大于 TIME_INTERVAL
             if key in mp3_access_map:
                 last_access_time = mp3_access_map[key].split(',')[-1]
                 last_access_timestamp = convert_to_timestamp(last_access_time)
                 if last_access_timestamp is None:
                     continue
-                # 判断访问时间差是否大于2分钟
+                # 访问时间差大于TIME_INTERVAL才追加记录
                 if timestamp - last_access_timestamp > TIME_INTERVAL:
                     mp3_access_map[key] += f",{access_time}"
             else:
@@ -159,11 +159,8 @@ def generate_statistics(mp3_access_map):
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 打开文件并写入
-    # with open(r'E:\Developer\pix-ffmpig\py\analyze\chfs-metric.html', 'w', encoding='utf-8') as file:
-    with open(r'H:\tmp\local\sum.html', 'w', encoding='utf-8') as file:
-        # html前缀
-        file.write("""<!DOCTYPE html>
+    # HTML 内容模板
+    html_content = """<!DOCTYPE html>
     <html>
     <!-- TODO: 
       - 增量统计 
@@ -174,16 +171,34 @@ def generate_statistics(mp3_access_map):
     <body>
     <H2>Update by {0}</H2>
     <pre>
-    """.format(current_time))
-        # 更新时间
-        # file.write(f"================    {current_time}    ================\n")
-        print_tree_to_file(frequency_map, file=file)
+    """
 
-        # html后缀
-        file.write("""</pre>
-        </body>
-        </html>
-        """)
+    # 定义两个输出路径
+    output_paths = [
+        r'H:\tmp\local\sum.html',
+        r'I:\files\sum.html'
+    ]
+
+    # 假设 frequency_map 已定义
+    for path in output_paths:
+        # 获取文件所在目录
+        directory = os.path.dirname(path)
+        
+        # 检查目录是否存在，不存在则打印并跳过
+        if directory and not os.path.exists(directory):
+            print(f"目录不存在: {directory}")
+            continue  # 跳过此路径，继续下一个
+
+        with open(path, 'w', encoding='utf-8') as file:
+            # 写入 HTML 前缀
+            file.write(html_content.format(current_time))
+            # 写入分析结果
+            print_tree_to_file(frequency_map, file=file)
+            # 写入 HTML 后缀
+            file.write("""</pre>
+    </body>
+    </html>
+    """)
 
 # 检查输入参数
 if len(sys.argv) != 2:
