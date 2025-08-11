@@ -183,7 +183,7 @@ def generate_statistics(mp3_access_map):
     for path in output_paths:
         # 获取文件所在目录
         directory = os.path.dirname(path)
-        
+
         # 检查目录是否存在，不存在则打印并跳过
         if directory and not os.path.exists(directory):
             print(f"目录不存在: {directory}")
