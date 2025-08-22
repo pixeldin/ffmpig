@@ -15,6 +15,13 @@ echo 启动Nginx...
 cd /d "E:\Developer\nginx\nginx-1.22.1"
 start "" nginx.exe -c "E:\Developer\nginx\nginx-1.22.1\conf\nginx_chfs.conf"
 
+REM =========首次更新 提取日志=========
+type "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log" | findstr "vvv=1" > "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+
+REM 运行 analyze.py
+python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze.py" "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+REM =========首次更新 提取日志=========
+
 REM 打印启动时间
 for /f "tokens=1-3 delims=:. " %%a in ("%time%") do (
     set "hour=%%a"
