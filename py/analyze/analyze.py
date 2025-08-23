@@ -110,7 +110,7 @@ def generate_statistics(mp3_access_map):
         current_dir['files'].append({'name': file_name, 'count': count, 'times': formatted_times})
 
     # 调试：打印 frequency_map
-    print("frequency_map:", json.dumps(frequency_map, indent=2, default=lambda x: dict(x)))
+    # print("frequency_map:", json.dumps(frequency_map, indent=2, default=lambda x: dict(x)))
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -218,7 +218,7 @@ def generate_statistics(mp3_access_map):
     log_data_json = json.dumps(convert_to_log_data(frequency_map), ensure_ascii=False, default=lambda x: dict(x))
 
     # 调试：打印 html_content 占位符
-    print("html_content placeholders:", re.findall(r'\{[^}]*\}', html_content))
+    # print("html_content placeholders:", re.findall(r'\{[^}]*\}', html_content))
 
     # 写入 HTML 文件
     output_paths = [
