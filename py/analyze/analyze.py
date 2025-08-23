@@ -122,7 +122,8 @@ def generate_statistics(mp3_access_map):
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>文件访问日志</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+  <script src="js/tailwindcss.js"></script>
   <style>
     .tree-node > ul {{ display: none; }}
     .tree-node.active > ul {{ display: block; }}
@@ -145,21 +146,6 @@ def generate_statistics(mp3_access_map):
 
     function renderTree(data, parentElement, path = '') {{
       for (const [dir, contents] of Object.entries(data)) {{
-        const currentPath = path ? `${{path}}/${{dir}}` : dir;
-        const dirLi = document.createElement('li');
-        dirLi.className = 'tree-node';
-        dirLi.innerHTML = `
-          <span class="flex items-center text-gray-700 font-semibold hover:text-blue-600">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-            ${{dir}}
-          </span>
-          <ul class="pl-6 space-y-2"></ul>
-        `;
-        parentElement.appendChild(dirLi);
-        const ul = dirLi.querySelector('ul');
-
         if (dir === 'files') {{
           contents.forEach(file => {{
             const fileLi = document.createElement('li');
@@ -168,13 +154,27 @@ def generate_statistics(mp3_access_map):
               <div class="flex justify-between">
                 <a href="/#/FILES/${{path}}/" target="_blank" class="text-blue-600 hover:underline">${{file.name}}</a>
                 <span class="text-gray-500 text-sm">
-                  访问次数: ${{file.count}} | 访问时间: ${{file.times.join(', ')}}
+                  次数: ${{file.count}} | 时间: ${{file.times.join(', ')}}
                 </span>
               </div>
             `;
-            ul.appendChild(fileLi);
+            parentElement.appendChild(fileLi);
           }});
         }} else {{
+          const currentPath = path ? `${{path}}/${{dir}}` : dir;
+          const dirLi = document.createElement('li');
+          dirLi.className = 'tree-node';
+          dirLi.innerHTML = `
+            <span class="flex items-center text-gray-700 font-semibold hover:text-blue-600">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+              ${{dir}}
+            </span>
+            <ul class="pl-6 space-y-2"></ul>
+          `;
+          parentElement.appendChild(dirLi);
+          const ul = dirLi.querySelector('ul');
           renderTree(contents, ul, currentPath);
         }}
       }}
@@ -222,8 +222,8 @@ def generate_statistics(mp3_access_map):
 
     # 写入 HTML 文件
     output_paths = [
-        r'H:\tmp\local\sum.html',
-        r'I:\files\sum.html'
+        r'H:\tmp\local\wind-sum\sum.html',
+        r'I:\files\wind-sum\sum.html'
     ]
 
     for path in output_paths:
