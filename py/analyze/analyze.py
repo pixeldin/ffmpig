@@ -130,26 +130,185 @@ def generate_statistics(mp3_access_map):
     .tree-node > span {{ cursor: pointer; }}
     .file-item {{ transition: background-color 0.2s; }}
     .file-item:hover {{ background-color: #f1f5f9; }}
+    .highlight {{ background-color: #fef08a; }}
+    .hidden-node {{ display: none; }}
+    .btn-active {{ background-color: #3b82f6; color: white; }}
   </style>
 </head>
 <body class="bg-gray-100 font-sans">
   <div class="container mx-auto p-6">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">文件访问日志 (更新时间: {0})</h1>
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">文件访问日志 (更新时间: {0})</h1>
+
+    <!-- 工具栏 -->
+    <div class="bg-white shadow rounded-lg p-4 mb-4 space-y-3">
+      <!-- 搜索 -->
+      <div class="flex items-center gap-3">
+        <input id="searchInput" type="text" placeholder="搜索文件名或路径..."
+          class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <button id="clearSearch" class="text-sm text-gray-500 hover:text-red-500">清除</button>
+      </div>
+      <!-- 视图 + 排序 + 时间 -->
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        <div class="flex items-center gap-1">
+          <span class="text-gray-600">视图:</span>
+          <button id="btnTree" class="px-3 py-1 rounded border border-gray-300 btn-active" data-view="tree">树形</button>
+          <button id="btnList" class="px-3 py-1 rounded border border-gray-300" data-view="list">列表</button>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="text-gray-600">排序:</span>
+          <select id="sortSelect" class="border border-gray-300 rounded px-2 py-1">
+            <option value="default">默认</option>
+            <option value="count-desc">次数 ↓</option>
+            <option value="count-asc">次数 ↑</option>
+            <option value="time-desc">最近访问 ↓</option>
+            <option value="time-asc">最近访问 ↑</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="text-gray-600">时间:</span>
+          <select id="timeFilter" class="border border-gray-300 rounded px-2 py-1">
+            <option value="all">全部</option>
+            <option value="1w">最近一周</option>
+            <option value="1m">最近一月</option>
+            <option value="3m">最近三月</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div id="customRange" class="hidden flex items-center gap-1">
+          <input id="dateFrom" type="date" class="border border-gray-300 rounded px-2 py-1" />
+          <span class="text-gray-400">~</span>
+          <input id="dateTo" type="date" class="border border-gray-300 rounded px-2 py-1" />
+          <button id="applyRange" class="px-2 py-1 bg-blue-500 text-white rounded text-xs">应用</button>
+        </div>
+        <span id="resultCount" class="text-gray-400 ml-auto"></span>
+      </div>
+    </div>
+
+    <!-- 内容区 -->
     <div class="bg-white shadow-lg rounded-lg p-6">
-      <ul id="tree" class="space-y-2">
-      </ul>
+      <ul id="tree" class="space-y-2"></ul>
+      <div id="listView" class="hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b text-left text-gray-600">
+              <th class="py-2 px-2">文件名</th>
+              <th class="py-2 px-2">路径</th>
+              <th class="py-2 px-2 text-center">次数</th>
+              <th class="py-2 px-2">访问时间</th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <script>
     const logData = {1};
 
+    // === 扁平化 logData 为文件列表 ===
+    function flattenData(data, path = '') {{
+      let files = [];
+      for (const [key, val] of Object.entries(data)) {{
+        if (key === 'files') {{
+          val.forEach(f => {{
+            const lastTime = f.times[f.times.length - 1];
+            files.push({{ name: f.name, path: path, count: f.count, times: f.times, lastTime }});
+          }});
+        }} else {{
+          files = files.concat(flattenData(val, path ? path + '/' + key : key));
+        }}
+      }}
+      return files;
+    }}
+    const allFiles = flattenData(logData);
+
+    // === 时间筛选 ===
+    function getTimeRange() {{
+      const v = document.getElementById('timeFilter').value;
+      const now = new Date();
+      if (v === 'all') return null;
+      if (v === '1w') return new Date(now - 7 * 86400000);
+      if (v === '1m') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      if (v === '3m') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      if (v === 'custom') {{
+        const from = document.getElementById('dateFrom').value;
+        return from ? new Date(from) : null;
+      }}
+      return null;
+    }}
+    function getTimeEnd() {{
+      const v = document.getElementById('timeFilter').value;
+      if (v === 'custom') {{
+        const to = document.getElementById('dateTo').value;
+        return to ? new Date(to + 'T23:59:59') : null;
+      }}
+      return null;
+    }}
+    function filterByTime(files) {{
+      const rangeStart = getTimeRange();
+      const rangeEnd = getTimeEnd();
+      if (!rangeStart && !rangeEnd) return files;
+      return files.filter(f => {{
+        return f.times.some(t => {{
+          const d = new Date(t);
+          if (rangeStart && d < rangeStart) return false;
+          if (rangeEnd && d > rangeEnd) return false;
+          return true;
+        }});
+      }});
+    }}
+
+    // === 搜索过滤 ===
+    function filterBySearch(files, keyword) {{
+      if (!keyword) return files;
+      const kw = keyword.toLowerCase();
+      return files.filter(f => f.name.toLowerCase().includes(kw) || f.path.toLowerCase().includes(kw));
+    }}
+
+    // === 排序 ===
+    function sortFiles(files) {{
+      const v = document.getElementById('sortSelect').value;
+      const sorted = [...files];
+      if (v === 'count-desc') sorted.sort((a, b) => b.count - a.count);
+      else if (v === 'count-asc') sorted.sort((a, b) => a.count - b.count);
+      else if (v === 'time-desc') sorted.sort((a, b) => new Date(b.lastTime) - new Date(a.lastTime));
+      else if (v === 'time-asc') sorted.sort((a, b) => new Date(a.lastTime) - new Date(b.lastTime));
+      return sorted;
+    }}
+
+    // === 列表视图渲染 ===
+    function renderList() {{
+      const keyword = document.getElementById('searchInput').value.trim();
+      let files = filterBySearch(allFiles, keyword);
+      files = filterByTime(files);
+      files = sortFiles(files);
+      const tbody = document.getElementById('listBody');
+      tbody.innerHTML = '';
+      files.forEach(f => {{
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50';
+        tr.innerHTML = `
+          <td class="py-2 px-2"><a href="/#/FILES/${{f.path}}/" target="_blank" class="text-blue-600 hover:underline">${{f.name}}</a></td>
+          <td class="py-2 px-2 text-gray-500">${{f.path}}</td>
+          <td class="py-2 px-2 text-center">${{f.count}}</td>
+          <td class="py-2 px-2 text-gray-500 text-xs">${{f.times.join(', ')}}</td>
+        `;
+        tbody.appendChild(tr);
+      }});
+      document.getElementById('resultCount').textContent = `共 ${{files.length}} 个文件`;
+    }}
+
+    // === 树形视图渲染 ===
     function renderTree(data, parentElement, path = '') {{
       for (const [dir, contents] of Object.entries(data)) {{
         if (dir === 'files') {{
           contents.forEach(file => {{
             const fileLi = document.createElement('li');
             fileLi.className = 'file-item pl-4 py-1 rounded';
+            fileLi.setAttribute('data-name', file.name.toLowerCase());
+            fileLi.setAttribute('data-path', path.toLowerCase());
+            fileLi.setAttribute('data-times', file.times.join(','));
             fileLi.innerHTML = `
               <div class="flex justify-between">
                 <a href="/#/FILES/${{path}}/" target="_blank" class="text-blue-600 hover:underline">${{file.name}}</a>
@@ -166,7 +325,7 @@ def generate_statistics(mp3_access_map):
           dirLi.className = 'tree-node';
           dirLi.innerHTML = `
             <span class="flex items-center text-gray-700 font-semibold hover:text-blue-600">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 mr-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
               </svg>
               ${{dir}}
@@ -180,19 +339,120 @@ def generate_statistics(mp3_access_map):
       }}
     }}
 
-    const tree = document.getElementById('tree');
-    renderTree(logData, tree);
-
-    // 一次性绑定点击事件
-    document.querySelectorAll('.tree-node > span').forEach(span => {{
-      span.addEventListener('click', () => {{
-        const li = span.parentElement;
-        li.classList.toggle('active');
-        const svg = span.querySelector('svg');
-        svg.classList.toggle('rotate-90');
-        console.log('Clicked directory:', span.textContent.trim());
+    function initTree() {{
+      const tree = document.getElementById('tree');
+      tree.innerHTML = '';
+      renderTree(logData, tree);
+      document.querySelectorAll('.tree-node > span').forEach(span => {{
+        span.addEventListener('click', () => {{
+          const li = span.parentElement;
+          li.classList.toggle('active');
+          span.querySelector('svg').classList.toggle('rotate-90');
+        }});
       }});
+    }}
+
+    // === 树形视图搜索 + 时间过滤 ===
+    function filterTree() {{
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      const rangeStart = getTimeRange();
+      const rangeEnd = getTimeEnd();
+      // 先重置所有节点
+      document.querySelectorAll('#tree .file-item').forEach(el => {{
+        el.classList.remove('hidden-node', 'highlight');
+      }});
+      document.querySelectorAll('#tree .tree-node').forEach(el => {{
+        el.classList.remove('hidden-node');
+        el.classList.remove('active');
+        el.querySelector('svg').classList.remove('rotate-90');
+      }});
+
+      const hasFilter = keyword || rangeStart || rangeEnd;
+      if (!hasFilter) {{
+        const count = document.querySelectorAll('#tree .file-item').length;
+        document.getElementById('resultCount').textContent = `共 ${{count}} 个文件`;
+        return;
+      }}
+
+      let visibleCount = 0;
+      // 过滤文件项
+      document.querySelectorAll('#tree .file-item').forEach(el => {{
+        const name = el.getAttribute('data-name');
+        const path = el.getAttribute('data-path');
+        const times = el.getAttribute('data-times').split(',');
+        let matchKeyword = !keyword || name.includes(keyword) || path.includes(keyword);
+        let matchTime = true;
+        if (rangeStart || rangeEnd) {{
+          matchTime = times.some(t => {{
+            const d = new Date(t);
+            if (rangeStart && d < rangeStart) return false;
+            if (rangeEnd && d > rangeEnd) return false;
+            return true;
+          }});
+        }}
+        if (matchKeyword && matchTime) {{
+          if (keyword) el.classList.add('highlight');
+          visibleCount++;
+        }} else {{
+          el.classList.add('hidden-node');
+        }}
+      }});
+
+      // 隐藏没有可见子文件的目录节点，展开有可见子文件的
+      function processNode(node) {{
+        const childFiles = node.querySelectorAll(':scope > ul > .file-item:not(.hidden-node)');
+        const childDirs = node.querySelectorAll(':scope > ul > .tree-node');
+        let hasVisible = childFiles.length > 0;
+        childDirs.forEach(d => {{
+          if (processNode(d)) hasVisible = true;
+        }});
+        if (!hasVisible) {{
+          node.classList.add('hidden-node');
+        }} else {{
+          node.classList.add('active');
+          node.querySelector('svg').classList.add('rotate-90');
+        }}
+        return hasVisible;
+      }}
+      document.querySelectorAll('#tree > .tree-node').forEach(n => processNode(n));
+      document.getElementById('resultCount').textContent = `共 ${{visibleCount}} 个文件`;
+    }}
+
+    // === 视图切换 ===
+    let currentView = 'tree';
+    function switchView(view) {{
+      currentView = view;
+      document.getElementById('btnTree').classList.toggle('btn-active', view === 'tree');
+      document.getElementById('btnList').classList.toggle('btn-active', view === 'list');
+      document.getElementById('tree').classList.toggle('hidden', view !== 'tree');
+      document.getElementById('listView').classList.toggle('hidden', view !== 'list');
+      refresh();
+    }}
+
+    function refresh() {{
+      if (currentView === 'list') renderList();
+      else filterTree();
+    }}
+
+    // === 事件绑定 ===
+    document.getElementById('btnTree').addEventListener('click', () => switchView('tree'));
+    document.getElementById('btnList').addEventListener('click', () => switchView('list'));
+    document.getElementById('searchInput').addEventListener('input', refresh);
+    document.getElementById('clearSearch').addEventListener('click', () => {{
+      document.getElementById('searchInput').value = '';
+      refresh();
     }});
+    document.getElementById('sortSelect').addEventListener('change', refresh);
+    document.getElementById('timeFilter').addEventListener('change', () => {{
+      document.getElementById('customRange').classList.toggle('hidden',
+        document.getElementById('timeFilter').value !== 'custom');
+      if (document.getElementById('timeFilter').value !== 'custom') refresh();
+    }});
+    document.getElementById('applyRange').addEventListener('click', refresh);
+
+    // === 初始化 ===
+    initTree();
+    refresh();
   </script>
 </body>
 </html>
@@ -221,9 +481,10 @@ def generate_statistics(mp3_access_map):
     # print("html_content placeholders:", re.findall(r'\{[^}]*\}', html_content))
 
     # 写入 HTML 文件
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, '..', '..')
     output_paths = [
-        r'H:\tmp\local\wind-sum\sum.html',
-        r'I:\files\wind-sum\sum.html'
+        os.path.join(project_root, 'demo', 'wind-sum', 'sum.html'),
     ]
 
     for path in output_paths:
