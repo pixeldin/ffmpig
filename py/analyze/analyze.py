@@ -133,11 +133,30 @@ def generate_statistics(mp3_access_map):
     .highlight {{ background-color: #fef08a; }}
     .hidden-node {{ display: none; }}
     .btn-active {{ background-color: #3b82f6; color: white; }}
+    /* 移动端适配 */
+    @media (max-width: 640px) {{
+      .container {{ padding: 0.75rem; }}
+      .toolbar-row {{ flex-direction: column; align-items: stretch; gap: 0.5rem; }}
+      .toolbar-group {{ width: 100%; }}
+      .toolbar-group select, .toolbar-group input[type="date"] {{ flex: 1; min-width: 0; }}
+      #customRange {{ flex-wrap: wrap; }}
+      #customRange input[type="date"] {{ flex: 1; min-width: 100px; }}
+      /* 列表视图：卡片模式 */
+      #listView table {{ display: none; }}
+      #listView .mobile-cards {{ display: flex; flex-direction: column; gap: 0.5rem; }}
+      /* 树形视图增加触摸间距 */
+      .tree-node > span {{ padding: 0.5rem 0; }}
+      .file-item {{ padding: 0.5rem 0.25rem; }}
+      .file-item .flex {{ flex-direction: column; gap: 0.25rem; }}
+    }}
+    @media (min-width: 641px) {{
+      #listView .mobile-cards {{ display: none; }}
+    }}
   </style>
 </head>
 <body class="bg-gray-100 font-sans">
   <div class="container mx-auto p-6">
-    <h1 class="text-3xl font-bold text-gray-800 mb-4">文件访问日志 (更新时间: {0})</h1>
+    <h1 class="text-xl sm:text-3xl font-bold text-gray-800 mb-4">文件访问日志 (更新时间: {0})</h1>
 
     <!-- 工具栏 -->
     <div class="bg-white shadow rounded-lg p-4 mb-4 space-y-3">
@@ -148,14 +167,14 @@ def generate_statistics(mp3_access_map):
         <button id="clearSearch" class="text-sm text-gray-500 hover:text-red-500">清除</button>
       </div>
       <!-- 视图 + 排序 + 时间 -->
-      <div class="flex flex-wrap items-center gap-3 text-sm">
-        <div class="flex items-center gap-1">
-          <span class="text-gray-600">视图:</span>
+      <div class="flex flex-wrap items-center gap-3 text-sm toolbar-row">
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">视图:</span>
           <button id="btnTree" class="px-3 py-1 rounded border border-gray-300 btn-active" data-view="tree">树形</button>
           <button id="btnList" class="px-3 py-1 rounded border border-gray-300" data-view="list">列表</button>
         </div>
-        <div class="flex items-center gap-1">
-          <span class="text-gray-600">排序:</span>
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">排序:</span>
           <select id="sortSelect" class="border border-gray-300 rounded px-2 py-1">
             <option value="default">默认</option>
             <option value="count-desc">次数 ↓</option>
@@ -164,8 +183,8 @@ def generate_statistics(mp3_access_map):
             <option value="time-asc">最近访问 ↑</option>
           </select>
         </div>
-        <div class="flex items-center gap-1">
-          <span class="text-gray-600">时间:</span>
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">时间:</span>
           <select id="timeFilter" class="border border-gray-300 rounded px-2 py-1">
             <option value="all">全部</option>
             <option value="1w">最近一周</option>
@@ -174,18 +193,18 @@ def generate_statistics(mp3_access_map):
             <option value="custom">自定义</option>
           </select>
         </div>
-        <div id="customRange" class="hidden flex items-center gap-1">
+        <div id="customRange" class="hidden flex items-center gap-1 toolbar-group">
           <input id="dateFrom" type="date" class="border border-gray-300 rounded px-2 py-1" />
           <span class="text-gray-400">~</span>
           <input id="dateTo" type="date" class="border border-gray-300 rounded px-2 py-1" />
-          <button id="applyRange" class="px-2 py-1 bg-blue-500 text-white rounded text-xs">应用</button>
+          <button id="applyRange" class="px-2 py-1 bg-blue-500 text-white rounded text-xs shrink-0">应用</button>
         </div>
-        <span id="resultCount" class="text-gray-400 ml-auto"></span>
+        <span id="resultCount" class="text-gray-400 sm:ml-auto"></span>
       </div>
     </div>
 
     <!-- 内容区 -->
-    <div class="bg-white shadow-lg rounded-lg p-6">
+    <div class="bg-white shadow-lg rounded-lg p-3 sm:p-6">
       <ul id="tree" class="space-y-2"></ul>
       <div id="listView" class="hidden">
         <table class="w-full text-sm">
@@ -199,6 +218,7 @@ def generate_statistics(mp3_access_map):
           </thead>
           <tbody id="listBody"></tbody>
         </table>
+        <div class="mobile-cards" id="mobileCards"></div>
       </div>
     </div>
   </div>
@@ -284,8 +304,11 @@ def generate_statistics(mp3_access_map):
       files = filterByTime(files);
       files = sortFiles(files);
       const tbody = document.getElementById('listBody');
+      const mobileCards = document.getElementById('mobileCards');
       tbody.innerHTML = '';
+      mobileCards.innerHTML = '';
       files.forEach(f => {{
+        // 桌面端表格行
         const tr = document.createElement('tr');
         tr.className = 'border-b hover:bg-gray-50';
         tr.innerHTML = `
@@ -295,6 +318,18 @@ def generate_statistics(mp3_access_map):
           <td class="py-2 px-2 text-gray-500 text-xs">${{f.times.join(', ')}}</td>
         `;
         tbody.appendChild(tr);
+        // 移动端卡片
+        const card = document.createElement('div');
+        card.className = 'border rounded-lg p-3 bg-gray-50';
+        card.innerHTML = `
+          <div class="font-medium"><a href="/#/FILES/${{f.path}}/" target="_blank" class="text-blue-600 hover:underline">${{f.name}}</a></div>
+          <div class="text-xs text-gray-400 mt-1 break-all">${{f.path}}</div>
+          <div class="flex justify-between mt-2 text-xs text-gray-500">
+            <span>次数: ${{f.count}}</span>
+            <span>${{f.times[f.times.length - 1]}}</span>
+          </div>
+        `;
+        mobileCards.appendChild(card);
       }});
       document.getElementById('resultCount').textContent = `共 ${{files.length}} 个文件`;
     }}
