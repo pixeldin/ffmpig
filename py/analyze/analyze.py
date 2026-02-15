@@ -321,13 +321,14 @@ def generate_statistics(mp3_access_map):
         // 移动端卡片
         const card = document.createElement('div');
         card.className = 'border rounded-lg p-3 bg-gray-50';
+        const timeTags = f.times.map(t => `<span class="inline-block bg-gray-200 text-gray-600 rounded px-1.5 py-0.5">${{t}}</span>`).join('');
         card.innerHTML = `
           <div class="font-medium"><a href="/#/FILES/${{f.path}}/" target="_blank" class="text-blue-600 hover:underline">${{f.name}}</a></div>
           <div class="text-xs text-gray-400 mt-1 break-all">${{f.path}}</div>
-          <div class="flex justify-between mt-2 text-xs text-gray-500">
-            <span>次数: ${{f.count}}</span>
-            <span>${{f.times[f.times.length - 1]}}</span>
+          <div class="flex items-center mt-2 text-xs text-gray-500">
+            <span class="shrink-0">次数: ${{f.count}}</span>
           </div>
+          <div class="flex flex-wrap gap-1 mt-1.5 text-xs">${{timeTags}}</div>
         `;
         mobileCards.appendChild(card);
       }});
