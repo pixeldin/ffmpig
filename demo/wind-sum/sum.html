@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件访问日志</title>
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+  <script src="js/tailwindcss.js"></script>
+  <style>
+    .tree-node > ul { display: none; }
+    .tree-node.active > ul { display: block; }
+    .tree-node > span { cursor: pointer; }
+    .file-item { transition: background-color 0.2s; }
+    .file-item:hover { background-color: #f1f5f9; }
+    .highlight { background-color: #fef08a; }
+    .hidden-node { display: none; }
+    .btn-active { background-color: #3b82f6; color: white; }
+    /* 移动端适配 */
+    @media (max-width: 640px) {
+      .container { padding: 0.75rem; }
+      .toolbar-row { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+      .toolbar-group { width: 100%; }
+      .toolbar-group select, .toolbar-group input[type="date"] { flex: 1; min-width: 0; }
+      #customRange { flex-wrap: wrap; }
+      #customRange input[type="date"] { flex: 1; min-width: 100px; }
+      /* 列表视图：卡片模式 */
+      #listView table { display: none; }
+      #listView .mobile-cards { display: flex; flex-direction: column; gap: 0.5rem; }
+      /* 树形视图增加触摸间距 */
+      .tree-node > span { padding: 0.5rem 0; }
+      .file-item { padding: 0.5rem 0.25rem; }
+      .file-item .flex { flex-direction: column; gap: 0.25rem; }
+    }
+    @media (min-width: 641px) {
+      #listView .mobile-cards { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="container mx-auto p-6">
+    <h1 class="text-xl sm:text-3xl font-bold text-gray-800 mb-4">文件访问日志 (更新时间: 2026-02-14 14:18:02)</h1>
+
+    <!-- 工具栏 -->
+    <div class="bg-white shadow rounded-lg p-4 mb-4 space-y-3">
+      <!-- 搜索 -->
+      <div class="flex items-center gap-3">
+        <input id="searchInput" type="text" placeholder="搜索文件名或路径..."
+          class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <button id="clearSearch" class="text-sm text-gray-500 hover:text-red-500">清除</button>
+      </div>
+      <!-- 视图 + 排序 + 时间 -->
+      <div class="flex flex-wrap items-center gap-3 text-sm toolbar-row">
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">视图:</span>
+          <button id="btnTree" class="px-3 py-1 rounded border border-gray-300 btn-active" data-view="tree">树形</button>
+          <button id="btnList" class="px-3 py-1 rounded border border-gray-300" data-view="list">列表</button>
+        </div>
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">排序:</span>
+          <select id="sortSelect" class="border border-gray-300 rounded px-2 py-1">
+            <option value="default">默认</option>
+            <option value="count-desc">次数 ↓</option>
+            <option value="count-asc">次数 ↑</option>
+            <option value="time-desc">最近访问 ↓</option>
+            <option value="time-asc">最近访问 ↑</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-1 toolbar-group">
+          <span class="text-gray-600 shrink-0">时间:</span>
+          <select id="timeFilter" class="border border-gray-300 rounded px-2 py-1">
+            <option value="all">全部</option>
+            <option value="1w">最近一周</option>
+            <option value="1m">最近一月</option>
+            <option value="3m">最近三月</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div id="customRange" class="hidden flex items-center gap-1 toolbar-group">
+          <input id="dateFrom" type="date" class="border border-gray-300 rounded px-2 py-1" />
+          <span class="text-gray-400">~</span>
+          <input id="dateTo" type="date" class="border border-gray-300 rounded px-2 py-1" />
+          <button id="applyRange" class="px-2 py-1 bg-blue-500 text-white rounded text-xs shrink-0">应用</button>
+        </div>
+        <span id="resultCount" class="text-gray-400 sm:ml-auto"></span>
+      </div>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="bg-white shadow-lg rounded-lg p-3 sm:p-6">
+      <ul id="tree" class="space-y-2"></ul>
+      <div id="listView" class="hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b text-left text-gray-600">
+              <th class="py-2 px-2">文件名</th>
+              <th class="py-2 px-2">路径</th>
+              <th class="py-2 px-2 text-center">次数</th>
+              <th class="py-2 px-2">访问时间</th>
+            </tr>
+          </thead>
+          <tbody id="listBody"></tbody>
+        </table>
+        <div class="mobile-cards" id="mobileCards"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const logData = {"E-sysTemp": {"body": {"northFlower": {"apache-flower-v3-siCherry-251": {"files": [{"name": "siCherry-251-s1.mp3", "count": 1, "times": ["2025-01-08 11:23:18"]}]}, "apache-flower-v3-siCherry-293": {"files": [{"name": "siCherry-293-s1.mp3", "count": 1, "times": ["2025-02-09 02:14:50"]}]}, "apache-flower-v3-siCherry-394": {"files": [{"name": "siCherry-394-s1.mp3", "count": 2, "times": ["2025-02-22 01:57:57", "2025-08-27 03:31:43"]}, {"name": "siCherry-394-s2.mp3", "count": 1, "times": ["2025-03-09 02:26:31"]}]}, "apache-flower-v3-siCherry-247": {"files": [{"name": "siCherry-247-s1.mp3", "count": 1, "times": ["2025-04-22 01:40:28"]}]}, "apache-flower-v3-siCherry-326": {"files": [{"name": "siCherry-326-s1.mp3", "count": 1, "times": ["2025-06-12 04:33:34"]}]}, "apache-flower-v3-siCherry-277": {"files": [{"name": "siCherry-277-s1.mp3", "count": 1, "times": ["2025-09-24 01:24:22"]}]}, "apache-flower-v3-siCherry-427": {"files": [{"name": "siCherry-427-s2.mp3", "count": 1, "times": ["2025-12-05 02:17:43"]}]}, "apache-flower-v3-siCherry-270": {"files": [{"name": "siCherry-270-s2.mp3", "count": 1, "times": ["2025-12-12 01:51:03"]}]}}, "HD": {"saCherry-504": {"files": [{"name": "saCherry-504.mp3", "count": 2, "times": ["2025-01-10 09:40:10", "2025-12-09 02:38:53"]}]}, "TASK-1435": {"files": [{"name": "TASK-1435-s1.mp3", "count": 1, "times": ["2025-03-11 02:23:01"]}]}, "kiwCherry-562": {"files": [{"name": "kiwCherry-562.mp3", "count": 1, "times": ["2025-05-18 02:21:25"]}]}, "cjCherry-030": {"files": [{"name": "cjCherry-030-persist.mp3", "count": 1, "times": ["2025-06-06 02:10:56"]}]}, "dsCherry-1364": {"files": [{"name": "dsCherry-1364.mp3", "count": 1, "times": ["2025-11-05 03:21:01"]}]}, "prCherry-073": {"files": [{"name": "prCherry-073.mp3", "count": 1, "times": ["2025-11-25 01:52:30"]}]}, "journalCat-057": {"files": [{"name": "journalCat-057.mp3", "count": 1, "times": ["2025-11-28 02:12:36"]}]}}, "deepField": {"zinx-v3-RCherry-047": {"files": [{"name": "RCherry-047.mp3", "count": 1, "times": ["2025-01-12 01:34:04"]}]}, "zinx-v3-prCherry-028": {"files": [{"name": "prCherry-028.mp3", "count": 1, "times": ["2025-04-07 03:25:59"]}]}, "zinx-v3-kaCherry-027": {"files": [{"name": "KACherry-027.mp3", "count": 1, "times": ["2025-05-15 01:11:21"]}]}, "zinx-v3-HNCherry-032": {"files": [{"name": "HNCherry-032.mp3", "count": 1, "times": ["2025-06-01 00:50:17"]}]}, "zinx-v3-KACherry-043": {"files": [{"name": "KACherry-043.mp3", "count": 1, "times": ["2025-06-16 02:38:59"]}]}, "zinx-v3-DSCherry-600": {"files": [{"name": "DSCherry-600.mp3", "count": 1, "times": ["2025-09-19 01:21:40"]}]}, "zinx-v3-prCherry-001": {"files": [{"name": "prCherry-001.mp3", "count": 1, "times": ["2026-01-13 02:30:29"]}]}}, "cute": {"beauty-org-clothes": {"netsp-267": {"files": [{"name": "netsp-267.mp3", "count": 1, "times": ["2025-01-13 07:45:37"]}]}, "dsCherry-1446": {"files": [{"name": "dsCherry-1446.mp3", "count": 1, "times": ["2025-07-07 02:07:52"]}]}, "TASK-1414": {"files": [{"name": "TASK-1414.mp3", "count": 1, "times": ["2025-07-19 02:52:03"]}]}}, "morning": {"netsp-172": {"files": [{"name": "netsp-172.mp3", "count": 1, "times": ["2025-01-21 05:13:39"]}]}, "hunCherry-121": {"files": [{"name": "hunCherry-121-city.mp3", "count": 1, "times": ["2025-07-25 01:32:24"]}]}}, "HFL-newWell": {"apache-spring-v3-rsrCherry-016": {"files": [{"name": "rsrCherry-016.mp3", "count": 1, "times": ["2025-01-28 03:09:52"]}]}, "apache-spring-v3-saCherry-547": {"files": [{"name": "saCherry-547.mp3", "count": 1, "times": ["2025-02-25 01:34:05"]}]}, "apache-spring-v3-time-580": {"files": [{"name": "time-580-hr.mp3", "count": 1, "times": ["2025-04-17 01:12:18"]}]}, "apache-spring-v3-saCherry-471": {"files": [{"name": "saCherry-471.mp3", "count": 1, "times": ["2025-06-19 06:03:15"]}]}, "apache-spring-v3-dsCherry-1500": {"files": [{"name": "dsCherry-1500-s2.mp3", "count": 1, "times": ["2025-09-02 01:37:43"]}]}, "apache-spring-v3-prCherry-063": {"files": [{"name": "prCherry-063-s1.mp3", "count": 1, "times": ["2025-09-11 01:49:44"]}]}}, "yi-white": {"v3-SICherry-132": {"files": [{"name": "SICherry-132-s1.mp3", "count": 1, "times": ["2025-02-02 04:55:40"]}]}}, "love-flower": {"apache-v3-kaCherry-305": {"files": [{"name": "kaCherry-305.mp3", "count": 1, "times": ["2025-02-15 00:08:03"]}]}, "apache-v3-hnCherry-148": {"files": [{"name": "hnCherry-148.mp3", "count": 1, "times": ["2025-03-04 02:57:31"]}]}}, "localtown-love": {"siCherry-292": {"files": [{"name": "siCherry-292.mp3", "count": 1, "times": ["2025-06-08 04:06:24"]}]}, "fsvss-002": {"files": [{"name": "fsvss-002.mp3", "count": 1, "times": ["2025-09-15 01:33:00"]}]}, "siCherry-291": {"files": [{"name": "siCherry-291.mp3", "count": 1, "times": ["2026-01-03 01:51:19"]}]}}}, "one-heart": {"mdCherry-282": {"files": [{"name": "mdCherry-282-s2.mp3", "count": 1, "times": ["2025-01-18 02:10:57"]}]}, "mdCherry-307": {"files": [{"name": "mdCherry-307-s2.mp3", "count": 1, "times": ["2025-04-11 02:46:38"]}]}}, "snow": {"kaCherry-363": {"files": [{"name": "KACherry-363-S1.mp3", "count": 1, "times": ["2025-01-25 00:44:40"]}]}, "kaCherry-401": {"files": [{"name": "kaCherry-401-s2.mp3", "count": 1, "times": ["2025-03-23 02:03:34"]}, {"name": "kaCherry-401-s1.mp3", "count": 1, "times": ["2025-04-20 01:49:25"]}]}, "kaCherry-331": {"files": [{"name": "kaCherry-331-s2.mp3", "count": 1, "times": ["2025-05-15 06:38:10"]}]}, "kaCherry-428": {"files": [{"name": "kaCherry-428-s2.mp3", "count": 1, "times": ["2025-07-12 03:43:00"]}, {"name": "kaCherry-428-s1.mp3", "count": 1, "times": ["2025-10-04 03:06:39"]}]}, "kaCherry-403": {"files": [{"name": "kaCherry-403-s1.mp3", "count": 1, "times": ["2025-08-22 02:20:22"]}]}, "kaCherry-306": {"files": [{"name": "kaCherry-306-s1.mp3", "count": 1, "times": ["2025-08-28 02:11:21"]}, {"name": "kaCherry-306-s2.mp3", "count": 1, "times": ["2026-01-07 02:14:35"]}]}, "kaCherry-440": {"files": [{"name": "kaCherry-440-s1.mp3", "count": 1, "times": ["2025-09-01 01:16:43"]}, {"name": "kaCherry-440-s2.mp3", "count": 1, "times": ["2025-09-20 01:41:42"]}]}, "kaCherry-343": {"files": [{"name": "kaCherry-343-s2.mp3", "count": 1, "times": ["2025-11-06 04:36:10"]}]}, "kaCherry-461": {"files": [{"name": "kaCherry-461-s1.mp3", "count": 1, "times": ["2025-11-19 01:05:13"]}, {"name": "kaCherry-461-s2.mp3", "count": 1, "times": ["2025-12-02 01:49:03"]}]}, "kaCherry-233": {"files": [{"name": "kaCherry-233-s1.mp3", "count": 1, "times": ["2026-02-07 07:41:51"]}]}}, "wood-love": {"TASK-1191": {"files": [{"name": "TASK-1191.mp3", "count": 1, "times": ["2025-01-29 03:49:46"]}]}}, "fen": {"IPCherry-075": {"files": [{"name": "IPCherry-075-hr.mp3", "count": 2, "times": ["2025-02-01 01:48:55", "2025-11-09 07:49:16"]}]}, "ipCherry-256": {"files": [{"name": "ipCherry-256-s2.mp3", "count": 1, "times": ["2025-03-22 02:04:44"]}]}, "ipCherry-273": {"files": [{"name": "ipCherry-273-s2.mp3", "count": 1, "times": ["2025-05-28 01:28:37"]}, {"name": "ipCherry-273-s1.mp3", "count": 1, "times": ["2025-12-17 02:40:25"]}]}, "IPCherry-050": {"files": [{"name": "IPCherry-050.mp3", "count": 1, "times": ["2025-06-18 04:09:20"]}]}}, "black-island": {"siCherry-371": {"files": [{"name": "siCherry-371-s2.mp3", "count": 2, "times": ["2025-02-08 01:16:47", "2025-08-13 02:28:27"]}, {"name": "siCherry-371-s1.mp3", "count": 1, "times": ["2025-05-17 02:09:52"]}]}, "siCherry-301": {"files": [{"name": "siCherry-301-s1.mp3", "count": 1, "times": ["2025-05-03 02:45:38"]}, {"name": "siCherry-301-s2.mp3", "count": 1, "times": ["2025-05-17 01:26:34"]}]}, "saCherry-773": {"files": [{"name": "saCherry-773.mp3", "count": 1, "times": ["2025-10-16 02:20:03"]}]}, "dsCherry-1796": {"files": [{"name": "dsCherry-1796.mp3", "count": 1, "times": ["2025-10-27 00:01:29"]}]}, "SACherry-767": {"files": [{"name": "SACherry-767-s2.mp3", "count": 1, "times": ["2026-01-25 02:08:13"]}]}}, "spring-sun": {"netsp-392": {"files": [{"name": "netsp-392.mp3", "count": 2, "times": ["2025-02-10 01:12:11", "2025-03-23 04:15:09"]}]}}, "three-step": {"juCherry-182": {"files": [{"name": "juCherry-182-s1.mp3", "count": 2, "times": ["2025-02-20 00:57:29", "2025-11-15 03:57:56"]}]}, "juCherry-218": {"files": [{"name": "juCherry-218-s1.mp3", "count": 1, "times": ["2025-03-28 02:56:05"]}]}, "juCherry-185": {"files": [{"name": "juCherry-185.mp3", "count": 1, "times": ["2025-05-13 02:31:24"]}]}}, "teach": {"apache-v3-netsp-351": {"files": [{"name": "netsp-351.mp3", "count": 1, "times": ["2025-02-27 01:19:47"]}]}, "apache-v3-TASK-1378": {"files": [{"name": "TASK-1378.mp3", "count": 1, "times": ["2025-04-16 01:28:55"]}]}, "apache-v3-vrprd-071": {"files": [{"name": "vrprd-071.mp3", "count": 1, "times": ["2025-05-21 02:28:46"]}]}, "apache-v3-SACherry-386": {"files": [{"name": "SACherry-386.mp3", "count": 1, "times": ["2025-05-29 01:30:46"]}]}, "apache-v3-TASK-1010": {"files": [{"name": "TASK-1010.mp3", "count": 1, "times": ["2025-06-23 02:29:53"]}]}, "apache-v3-kiwCherry-773": {"files": [{"name": "kiwCherry-773.mp3", "count": 1, "times": ["2025-09-07 02:32:44"]}]}, "apache-v3-TASK-1088": {"files": [{"name": "TASK-1088.mp3", "count": 1, "times": ["2025-10-01 02:34:04"]}]}, "apache-v3-KIWCherry-777": {"files": [{"name": "KIWCherry-777.mp3", "count": 1, "times": ["2025-11-20 02:46:08"]}]}, "apache-v3-DSCherry-1558": {"files": [{"name": "DSCherry-1558.mp3", "count": 1, "times": ["2026-01-11 04:06:12"]}]}}, "west-palace": {"ipCherry-183": {"files": [{"name": "ipCherry-183-s1.mp3", "count": 1, "times": ["2025-03-20 01:00:34"]}]}, "dsCherry-1616": {"files": [{"name": "dsCherry-1616.mp3", "count": 1, "times": ["2025-04-26 01:47:57"]}]}, "saCherry-460": {"files": [{"name": "saCherry-460.mp3", "count": 1, "times": ["2025-06-01 01:58:38"]}]}, "netSP-285": {"files": [{"name": "netsp-285.mp3", "count": 1, "times": ["2025-07-02 03:57:48"]}]}, "TASK-1342": {"files": [{"name": "TASK-1342.mp3", "count": 1, "times": ["2025-07-30 03:56:59"]}]}, "PXCherry-149": {"files": [{"name": "PXCherry-149.mp3", "count": 1, "times": ["2025-10-11 00:44:45"]}]}, "netsp-286": {"files": [{"name": "netsp-286.mp3", "count": 1, "times": ["2026-01-26 02:24:51"]}]}}, "wm": {"dsCherry-1177": {"files": [{"name": "dsCherry-1177.mp3", "count": 1, "times": ["2025-03-30 03:15:20"]}]}, "kiwCherry-621": {"files": [{"name": "kiwCherry-621.mp3", "count": 1, "times": ["2025-06-20 03:40:05"]}]}}, "white-hill": {"apache-v3-ipCherry-163": {"files": [{"name": "ipCherry-163.mp3", "count": 1, "times": ["2025-04-01 01:46:54"]}]}, "apache-v3-ipCherry-121": {"files": [{"name": "ipCherry-121.mp3", "count": 2, "times": ["2025-05-01 05:51:29", "2025-10-14 01:58:23"]}]}}, "panelRoad": {"siCherry-338": {"files": [{"name": "siCherry-338-s2.mp3", "count": 1, "times": ["2025-04-05 00:33:39"]}]}, "siCherry-317": {"files": [{"name": "siCherry-317-s2.mp3", "count": 1, "times": ["2025-05-09 02:04:27"]}]}, "siCherry-214": {"files": [{"name": "siCherry-214-s1.mp3", "count": 1, "times": ["2025-06-10 02:40:03"]}, {"name": "siCherry-214-s2.mp3", "count": 1, "times": ["2026-02-12 02:29:55"]}]}, "siCherry-040": {"files": [{"name": "SICherry-040.mp3", "count": 1, "times": ["2025-07-11 03:37:30"]}]}, "siCherry-184": {"files": [{"name": "siCherry-184-s1.mp3", "count": 1, "times": ["2025-11-12 00:34:00"]}]}}, "three-field": {"siCherry-366": {"files": [{"name": "siCherry-366-s1.mp3", "count": 1, "times": ["2025-04-29 05:59:00"]}, {"name": "siCherry-366-s2.mp3", "count": 1, "times": ["2025-04-29 06:20:31"]}]}, "siCherry-314": {"files": [{"name": "siCherry-314-s2.mp3", "count": 1, "times": ["2025-06-03 06:16:39"]}]}, "siCherry-390": {"files": [{"name": "siCherry-390-s2.mp3", "count": 1, "times": ["2025-07-05 02:18:49"]}]}}, "universal-wild": {"ebCherry-079": {"files": [{"name": "ebCherry-079.mp3", "count": 1, "times": ["2025-04-30 01:26:52"]}]}, "rsrCherry-040": {"files": [{"name": "rsrCherry-040.mp3", "count": 1, "times": ["2025-05-13 01:58:37"]}]}}, "G.E.M": {"apache-GEM-v3-dsCherry-1480": {"files": [{"name": "dsCherry-1480.mp3", "count": 1, "times": ["2025-05-11 01:43:20"]}]}, "apache-GEM-v3-saCherry-337": {"files": [{"name": "saCherry-337.mp3", "count": 1, "times": ["2025-08-11 02:22:52"]}]}, "apache-GEM-v3-TASK-1235": {"files": [{"name": "TASK-1235.mp3", "count": 1, "times": ["2025-11-13 01:46:29"]}]}, "apache-GEM-v3-kiwCherry-646": {"files": [{"name": "kiwCherry-646.mp3", "count": 1, "times": ["2025-11-21 01:37:26"]}]}}, "stone-river": {"mdCherry-353": {"files": [{"name": "mdCherry-353-s1.mp3", "count": 2, "times": ["2025-07-18 02:27:26", "2026-01-31 03:03:54"]}]}}, "blue-teeth": {"TASK-1387": {"files": [{"name": "TASK-1387.mp3", "count": 1, "times": ["2025-09-05 02:42:40"]}]}}, "beauty-cloth": {"TASK-1600": {"files": [{"name": "TASK-1600.mp3", "count": 1, "times": ["2025-09-14 02:54:22"]}]}, "TASK-1618": {"files": [{"name": "TASK-1618.mp3", "count": 1, "times": ["2025-11-22 02:28:43"]}]}, "saCherry-851": {"files": [{"name": "saCherry-851-s2.mp3", "count": 1, "times": ["2025-11-28 15:52:44"]}]}, "SACherry-669": {"files": [{"name": "saCherry-669.mp3", "count": 1, "times": ["2026-01-15 04:10:16"]}]}}}, "Cow": {"dreamMilk": {"SICherry-093": {"files": [{"name": "SICherry-093-S1.mp3", "count": 2, "times": ["2025-01-08 11:25:35", "2025-02-04 14:08:13"]}, {"name": "SICherry-093-S2.mp3", "count": 3, "times": ["2025-01-08 11:31:22", "2025-05-08 03:12:43", "2025-08-13 02:53:21"]}]}, "SICherry-142": {"files": [{"name": "SICherry-142.mp3", "count": 1, "times": ["2025-01-08 11:26:32"]}]}, "siCherry-246": {"files": [{"name": "siCherry-246.mp3", "count": 1, "times": ["2025-01-09 01:51:14"]}]}, "siCherry-294": {"files": [{"name": "siCherry-294-S2.mp3", "count": 2, "times": ["2025-01-14 00:40:03", "2025-06-10 05:45:03"]}]}, "siCherry-124": {"files": [{"name": "siCherry-124-s2.mp3", "count": 1, "times": ["2025-01-30 03:42:30"]}]}, "SICherry-100": {"files": [{"name": "siCherry-100-s2.mp3", "count": 1, "times": ["2025-02-04 01:49:41"]}, {"name": "siCherry-100-s1.mp3", "count": 1, "times": ["2026-01-20 02:55:33"]}]}, "siCherry-180": {"files": [{"name": "SICherry-180-S2.mp3", "count": 1, "times": ["2025-02-14 00:52:56"]}]}, "siCherry-268": {"files": [{"name": "siCherry-268-s1.mp3", "count": 1, "times": ["2025-03-04 05:04:07"]}, {"name": "siCherry-268-s2.mp3", "count": 1, "times": ["2025-05-19 04:19:27"]}]}, "siCherry-230": {"files": [{"name": "siCherry-230-s1.mp3", "count": 1, "times": ["2025-03-19 00:55:05"]}]}, "SICherry-082": {"files": [{"name": "SICherry-082-S2.mp3", "count": 1, "times": ["2025-07-21 02:18:54"]}]}, "siCherry-250": {"files": [{"name": "siCherry-250-s1.mp3", "count": 1, "times": ["2025-08-02 02:18:25"]}]}, "siCherry-276": {"files": [{"name": "siCherry-276-s2.mp3", "count": 1, "times": ["2025-09-28 04:03:03"]}, {"name": "siCherry-276-s1.mp3", "count": 1, "times": ["2026-01-05 01:31:50"]}]}, "siCherry-197": {"files": [{"name": "siCherry-197-s2.mp3", "count": 1, "times": ["2025-10-26 05:56:02"]}]}, "siCherry-382": {"files": [{"name": "siCherry-382-s1.mp3", "count": 1, "times": ["2025-11-27 03:08:58"]}]}}, "lotus-leaf": {"apache-v3-BIBICherry-010": {"files": [{"name": "BIBICherry-010.mp3", "count": 1, "times": ["2025-01-08 11:32:31"]}]}, "apache-v3-ajCherry-208": {"files": [{"name": "ajCherry-208.mp3", "count": 1, "times": ["2025-04-17 02:30:31"]}]}, "apache-v3-saCherry-389": {"files": [{"name": "saCherry-389.mp3", "count": 1, "times": ["2025-08-18 01:30:03"]}]}, "apache-v3-TASK-564": {"files": [{"name": "TASK-564-persist.mp3", "count": 1, "times": ["2025-12-24 03:11:01"]}]}}, "teeth": {"time-589": {"files": [{"name": "time-589.mp3", "count": 2, "times": ["2025-01-12 07:13:55", "2025-07-17 02:05:17"]}]}, "PPCherry-020": {"files": [{"name": "PPCherry-020.mp3", "count": 1, "times": ["2025-03-29 06:35:56"]}]}, "kiwCherry-620": {"files": [{"name": "KIWCherry-620.mp3", "count": 1, "times": ["2025-06-09 01:17:46"]}]}, "MDCherry-187": {"files": [{"name": "MDCherry-187.mp3", "count": 1, "times": ["2025-09-09 01:49:26"]}]}, "KACherry-164": {"files": [{"name": "KACherry-164-sock.mp3", "count": 1, "times": ["2025-10-30 05:47:10"]}]}, "journalCat-054": {"files": [{"name": "journalCat-054.mp3", "count": 1, "times": ["2025-12-06 02:51:57"]}]}, "kaCherry-347": {"files": [{"name": "kaCherry-347-s1.mp3", "count": 1, "times": ["2025-12-19 02:06:54"]}]}}, "threeup": {"siCherry-271": {"files": [{"name": "siCherry-271.mp3", "count": 1, "times": ["2025-01-17 01:41:36"]}]}, "siCherry-034": {"files": [{"name": "SICherry-034.mp3", "count": 1, "times": ["2025-05-11 02:23:34"]}]}, "SICherry-137": {"files": [{"name": "SICherry-137.mp3", "count": 1, "times": ["2025-06-04 02:51:17"]}]}, "siCherry-067": {"files": [{"name": "siCherry-067.mp3", "count": 1, "times": ["2025-06-21 04:01:12"]}]}}, "river-west": {"siCherry-297": {"files": [{"name": "siCherry-297-s2.mp3", "count": 1, "times": ["2025-01-18 01:24:26"]}, {"name": "siCherry-297-s1.mp3", "count": 1, "times": ["2025-07-14 02:49:41"]}]}}, "pine-pear": {"prCherry-076": {"files": [{"name": "prCherry-076-s2.mp3", "count": 2, "times": ["2025-01-20 01:29:31", "2025-04-27 02:47:36"]}]}, "saCherry-352": {"files": [{"name": "saCherry-352.mp3", "count": 1, "times": ["2025-02-26 01:13:18"]}]}, "crCherry-332": {"files": [{"name": "CRCherry-332.mp3", "count": 1, "times": ["2025-09-03 03:41:29"]}]}, "saCherry-375": {"files": [{"name": "saCherry-375.mp3", "count": 1, "times": ["2025-11-24 01:45:34"]}]}, "dsCherry-1507": {"files": [{"name": "dsCherry-1507.mp3", "count": 1, "times": ["2025-12-14 01:50:39"]}]}}, "qzz": {"apache-pig-v3-TASK-598": {"files": [{"name": "TASK-598-s2.mp3", "count": 1, "times": ["2025-01-24 01:47:39"]}]}, "apache-pig-v3-KIWCherry-227": {"files": [{"name": "KIWCherry-227.mp3", "count": 1, "times": ["2025-10-09 02:43:42"]}]}, "apache-pig-v3-saCherry-421": {"files": [{"name": "saCherry-421-s2.mp3", "count": 1, "times": ["2025-12-23 01:18:28"]}]}}, "water": {"mdCherry-319": {"files": [{"name": "mdCherry-319.mp3", "count": 1, "times": ["2025-02-11 01:48:15"]}]}, "mdCherry-249": {"files": [{"name": "mdCherry-249-s2.mp3", "count": 1, "times": ["2025-03-28 05:46:51"]}]}, "mdCherry-287": {"files": [{"name": "mdCherry-287.mp3", "count": 1, "times": ["2025-07-24 02:29:41"]}]}}, "god-wood": {"dsCherry-1321": {"files": [{"name": "dsCherry-1321.mp3", "count": 2, "times": ["2025-02-28 01:31:36", "2025-08-21 01:20:00"]}]}, "dsCherry-1669": {"files": [{"name": "dsCherry-1669.mp3", "count": 1, "times": ["2025-10-07 03:31:55"]}]}}, "AI": {"dsCherry-1650": {"files": [{"name": "dsCherry-1650.mp3", "count": 1, "times": ["2025-03-06 02:13:53"]}]}}, "townup": {"siCherry-323": {"files": [{"name": "siCherry-323.mp3", "count": 1, "times": ["2025-03-11 23:52:41"]}]}, "siCherry-334": {"files": [{"name": "siCherry-334.mp3", "count": 1, "times": ["2025-04-12 02:04:30"]}]}, "siCherry-407": {"files": [{"name": "siCherry-407-s2.mp3", "count": 1, "times": ["2025-06-30 01:37:49"]}]}}, "tissue": {"apache-tissue-v3-dsCherry-1371": {"files": [{"name": "dsCherry-1371.mp3", "count": 1, "times": ["2025-03-14 01:51:37"]}]}, "apache-tissue-v3-ebCherry-081": {"files": [{"name": "ebCherry-081.mp3", "count": 1, "times": ["2025-04-03 01:32:19"]}]}, "apache-tissue-v3-netsp-208": {"files": [{"name": "netsp-208.mp3", "count": 1, "times": ["2025-07-27 02:42:18"]}]}, "apache-tissue-v3-TASK-979": {"files": [{"name": "TASK-979.mp3", "count": 1, "times": ["2025-08-16 03:43:56"]}]}, "apache-tissue-v3-netsp-207": {"files": [{"name": "netsp-207-s1.mp3", "count": 1, "times": ["2025-10-13 02:13:54"]}]}}, "long-bin": {"ipCherry-276": {"files": [{"name": "ipCherry-276-s2.mp3", "count": 1, "times": ["2025-04-09 02:27:10"]}]}, "IPCherry-321": {"files": [{"name": "IPCherry-321.mp3", "count": 1, "times": ["2025-07-28 01:47:51"]}]}, "ipCherry-303": {"files": [{"name": "ipCherry-303-s1.mp3", "count": 1, "times": ["2025-09-03 03:18:54"]}]}, "ipCherry-333": {"files": [{"name": "ipCherry-333-s2.mp3", "count": 1, "times": ["2025-09-22 01:57:25"]}, {"name": "ipCherry-333-s1.mp3", "count": 1, "times": ["2025-11-08 01:17:59"]}]}}, "ball-stone": {"netsp-431": {"files": [{"name": "netsp-431.mp3", "count": 1, "times": ["2025-04-21 02:06:19"]}]}, "siCherry-355": {"files": [{"name": "siCherry-355.mp3", "count": 1, "times": ["2025-12-15 01:49:40"]}]}}, "orange": {"kaCherry-344": {"files": [{"name": "kaCherry-344-s1.mp3", "count": 1, "times": ["2025-04-22 03:39:00"]}, {"name": "kaCherry-344-s2.mp3", "count": 1, "times": ["2025-06-14 02:32:02"]}]}}, "tiger": {"siCherry-281": {"files": [{"name": "siCherry-281.mp3", "count": 1, "times": ["2025-04-25 01:49:35"]}]}, "siCherry-336": {"files": [{"name": "siCherry-336-s1.mp3", "count": 1, "times": ["2026-01-22 01:14:03"]}]}}, "sea-sister": {"mdCherry-142": {"files": [{"name": "mdCherry-142.mp3", "count": 1, "times": ["2025-06-02 02:51:10"]}]}}, "unpai": {"siCherry-257": {"files": [{"name": "siCherry-257.mp3", "count": 1, "times": ["2025-07-26 03:26:43"]}]}}, "LHP": {"juCherry-237": {"files": [{"name": "juCherry-237-s2.mp3", "count": 1, "times": ["2025-08-23 02:10:02"]}]}}, "three-palace": {"ATCherry-063": {"files": [{"name": "atCherry-063-s2.mp3", "count": 1, "times": ["2025-10-28 02:12:57"]}]}}, "sun-direction": {"siCherry-264": {"files": [{"name": "siCherry-264-s2.mp3", "count": 1, "times": ["2025-12-31 04:16:54"]}]}}}}, "F-sysTemp": {"Virtualv": {"wf": {"south": {"ipCherry-167": {"files": [{"name": "ipCherry-167.mp3", "count": 1, "times": ["2025-01-18 01:19:38"]}]}, "ipCherry-105": {"files": [{"name": "IPCherry-105.mp3", "count": 1, "times": ["2025-01-26 01:51:52"]}]}, "ipCherry-201": {"files": [{"name": "ipCherry-201.mp3", "count": 1, "times": ["2025-03-02 03:04:20"]}]}, "ipCherry-214": {"files": [{"name": "ipCherry-214-s1.mp3", "count": 1, "times": ["2025-04-13 05:23:33"]}]}, "ipCherry-226": {"files": [{"name": "ipCherry-226-s2.mp3", "count": 1, "times": ["2025-10-08 01:46:38"]}]}, "IPCherry-159": {"files": [{"name": "ipCherry-159.mp3", "count": 1, "times": ["2025-10-22 23:45:35"]}]}, "ipCherry-128": {"files": [{"name": "ipCherry-128-teach.mp3", "count": 1, "times": ["2025-12-04 03:22:04"]}]}, "ipCherry-175": {"files": [{"name": "ipCherry-175.mp3", "count": 1, "times": ["2025-12-29 02:01:36"]}]}, "IPCherry-120": {"files": [{"name": "IPCherry-120.mp3", "count": 1, "times": ["2026-01-16 02:50:04"]}]}}, "qb": {"apache-bridge-SICherry-057": {"files": [{"name": "SICherry-057-sock.mp3", "count": 1, "times": ["2025-01-23 01:50:09"]}]}, "apache-bridge-mdCherry-312": {"files": [{"name": "mdCherry-312-s2.mp3", "count": 1, "times": ["2025-02-16 02:29:59"]}, {"name": "mdCherry-312-s1.mp3", "count": 2, "times": ["2025-05-19 03:42:45", "2025-08-24 02:39:14"]}]}, "apache-bridge-SICherry-033": {"files": [{"name": "SICherry-033.mp3", "count": 1, "times": ["2025-07-10 03:04:16"]}]}, "apache-bridge-SICherry-030": {"files": [{"name": "SICherry-030.mp3", "count": 1, "times": ["2025-10-21 02:13:55"]}]}, "apache-bridge-mdCherry-276": {"files": [{"name": "mdCherry-276-s1.mp3", "count": 1, "times": ["2025-11-14 02:52:55"]}]}}}, "peach": {"sample-427zero": {"files": [{"name": "sample-427zero.mp3", "count": 1, "times": ["2025-06-27 01:27:40"]}]}, "ipCherry-090": {"files": [{"name": "ipCherry-090-s2.mp3", "count": 2, "times": ["2025-11-18 02:15:10", "2025-12-27 02:25:19"]}]}}}}};
+
+    // === 扁平化 logData 为文件列表 ===
+    function flattenData(data, path = '') {
+      let files = [];
+      for (const [key, val] of Object.entries(data)) {
+        if (key === 'files') {
+          val.forEach(f => {
+            const lastTime = f.times[f.times.length - 1];
+            files.push({ name: f.name, path: path, count: f.count, times: f.times, lastTime });
+          });
+        } else {
+          files = files.concat(flattenData(val, path ? path + '/' + key : key));
+        }
+      }
+      return files;
+    }
+    const allFiles = flattenData(logData);
+
+    // === 时间筛选 ===
+    function getTimeRange() {
+      const v = document.getElementById('timeFilter').value;
+      const now = new Date();
+      if (v === 'all') return null;
+      if (v === '1w') return new Date(now - 7 * 86400000);
+      if (v === '1m') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      if (v === '3m') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      if (v === 'custom') {
+        const from = document.getElementById('dateFrom').value;
+        return from ? new Date(from) : null;
+      }
+      return null;
+    }
+    function getTimeEnd() {
+      const v = document.getElementById('timeFilter').value;
+      if (v === 'custom') {
+        const to = document.getElementById('dateTo').value;
+        return to ? new Date(to + 'T23:59:59') : null;
+      }
+      return null;
+    }
+    function filterByTime(files) {
+      const rangeStart = getTimeRange();
+      const rangeEnd = getTimeEnd();
+      if (!rangeStart && !rangeEnd) return files;
+      return files.filter(f => {
+        return f.times.some(t => {
+          const d = new Date(t);
+          if (rangeStart && d < rangeStart) return false;
+          if (rangeEnd && d > rangeEnd) return false;
+          return true;
+        });
+      });
+    }
+
+    // === 搜索过滤 ===
+    function filterBySearch(files, keyword) {
+      if (!keyword) return files;
+      const kw = keyword.toLowerCase();
+      return files.filter(f => f.name.toLowerCase().includes(kw) || f.path.toLowerCase().includes(kw));
+    }
+
+    // === 排序 ===
+    function sortFiles(files) {
+      const v = document.getElementById('sortSelect').value;
+      const sorted = [...files];
+      if (v === 'count-desc') sorted.sort((a, b) => b.count - a.count);
+      else if (v === 'count-asc') sorted.sort((a, b) => a.count - b.count);
+      else if (v === 'time-desc') sorted.sort((a, b) => new Date(b.lastTime) - new Date(a.lastTime));
+      else if (v === 'time-asc') sorted.sort((a, b) => new Date(a.lastTime) - new Date(b.lastTime));
+      return sorted;
+    }
+
+    // === 列表视图渲染 ===
+    function renderList() {
+      const keyword = document.getElementById('searchInput').value.trim();
+      let files = filterBySearch(allFiles, keyword);
+      files = filterByTime(files);
+      files = sortFiles(files);
+      const tbody = document.getElementById('listBody');
+      const mobileCards = document.getElementById('mobileCards');
+      tbody.innerHTML = '';
+      mobileCards.innerHTML = '';
+      files.forEach(f => {
+        // 桌面端表格行
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50';
+        tr.innerHTML = `
+          <td class="py-2 px-2"><a href="/#/FILES/${f.path}/" target="_blank" class="text-blue-600 hover:underline">${f.name}</a></td>
+          <td class="py-2 px-2 text-gray-500">${f.path}</td>
+          <td class="py-2 px-2 text-center">${f.count}</td>
+          <td class="py-2 px-2 text-gray-500 text-xs">${f.times.join(', ')}</td>
+        `;
+        tbody.appendChild(tr);
+        // 移动端卡片
+        const card = document.createElement('div');
+        card.className = 'border rounded-lg p-3 bg-gray-50';
+        const timeTags = f.times.map(t => `<span class="inline-block bg-gray-200 text-gray-600 rounded px-1.5 py-0.5">${t}</span>`).join('');
+        card.innerHTML = `
+          <div class="font-medium"><a href="/#/FILES/${f.path}/" target="_blank" class="text-blue-600 hover:underline">${f.name}</a></div>
+          <div class="text-xs text-gray-400 mt-1 break-all">${f.path}</div>
+          <div class="flex items-center mt-2 text-xs text-gray-500">
+            <span class="shrink-0">次数: ${f.count}</span>
+          </div>
+          <div class="flex flex-wrap gap-1 mt-1.5 text-xs">${timeTags}</div>
+        `;
+        mobileCards.appendChild(card);
+      });
+      document.getElementById('resultCount').textContent = `共 ${files.length} 个文件`;
+    }
+
+    // === 树形视图渲染 ===
+    function renderTree(data, parentElement, path = '') {
+      for (const [dir, contents] of Object.entries(data)) {
+        if (dir === 'files') {
+          contents.forEach(file => {
+            const fileLi = document.createElement('li');
+            fileLi.className = 'file-item pl-4 py-1 rounded';
+            fileLi.setAttribute('data-name', file.name.toLowerCase());
+            fileLi.setAttribute('data-path', path.toLowerCase());
+            fileLi.setAttribute('data-times', file.times.join(','));
+            fileLi.innerHTML = `
+              <div class="flex justify-between">
+                <a href="/#/FILES/${path}/" target="_blank" class="text-blue-600 hover:underline">${file.name}</a>
+                <span class="text-gray-500 text-sm">
+                  次数: ${file.count} | 时间: ${file.times.join(', ')}
+                </span>
+              </div>
+            `;
+            parentElement.appendChild(fileLi);
+          });
+        } else {
+          const currentPath = path ? `${path}/${dir}` : dir;
+          const dirLi = document.createElement('li');
+          dirLi.className = 'tree-node';
+          dirLi.innerHTML = `
+            <span class="flex items-center text-gray-700 font-semibold hover:text-blue-600">
+              <svg class="w-4 h-4 mr-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+              ${dir}
+            </span>
+            <ul class="pl-6 space-y-2"></ul>
+          `;
+          parentElement.appendChild(dirLi);
+          const ul = dirLi.querySelector('ul');
+          renderTree(contents, ul, currentPath);
+        }
+      }
+    }
+
+    function initTree() {
+      const tree = document.getElementById('tree');
+      tree.innerHTML = '';
+      renderTree(logData, tree);
+      document.querySelectorAll('.tree-node > span').forEach(span => {
+        span.addEventListener('click', () => {
+          const li = span.parentElement;
+          li.classList.toggle('active');
+          span.querySelector('svg').classList.toggle('rotate-90');
+        });
+      });
+    }
+
+    // === 树形视图搜索 + 时间过滤 ===
+    function filterTree() {
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      const rangeStart = getTimeRange();
+      const rangeEnd = getTimeEnd();
+      // 先重置所有节点
+      document.querySelectorAll('#tree .file-item').forEach(el => {
+        el.classList.remove('hidden-node', 'highlight');
+      });
+      document.querySelectorAll('#tree .tree-node').forEach(el => {
+        el.classList.remove('hidden-node');
+        el.classList.remove('active');
+        el.querySelector('svg').classList.remove('rotate-90');
+      });
+
+      const hasFilter = keyword || rangeStart || rangeEnd;
+      if (!hasFilter) {
+        const count = document.querySelectorAll('#tree .file-item').length;
+        document.getElementById('resultCount').textContent = `共 ${count} 个文件`;
+        return;
+      }
+
+      let visibleCount = 0;
+      // 过滤文件项
+      document.querySelectorAll('#tree .file-item').forEach(el => {
+        const name = el.getAttribute('data-name');
+        const path = el.getAttribute('data-path');
+        const times = el.getAttribute('data-times').split(',');
+        let matchKeyword = !keyword || name.includes(keyword) || path.includes(keyword);
+        let matchTime = true;
+        if (rangeStart || rangeEnd) {
+          matchTime = times.some(t => {
+            const d = new Date(t);
+            if (rangeStart && d < rangeStart) return false;
+            if (rangeEnd && d > rangeEnd) return false;
+            return true;
+          });
+        }
+        if (matchKeyword && matchTime) {
+          if (keyword) el.classList.add('highlight');
+          visibleCount++;
+        } else {
+          el.classList.add('hidden-node');
+        }
+      });
+
+      // 隐藏没有可见子文件的目录节点，展开有可见子文件的
+      function processNode(node) {
+        const childFiles = node.querySelectorAll(':scope > ul > .file-item:not(.hidden-node)');
+        const childDirs = node.querySelectorAll(':scope > ul > .tree-node');
+        let hasVisible = childFiles.length > 0;
+        childDirs.forEach(d => {
+          if (processNode(d)) hasVisible = true;
+        });
+        if (!hasVisible) {
+          node.classList.add('hidden-node');
+        } else {
+          node.classList.add('active');
+          node.querySelector('svg').classList.add('rotate-90');
+        }
+        return hasVisible;
+      }
+      document.querySelectorAll('#tree > .tree-node').forEach(n => processNode(n));
+      document.getElementById('resultCount').textContent = `共 ${visibleCount} 个文件`;
+    }
+
+    // === 视图切换 ===
+    let currentView = 'tree';
+    function switchView(view) {
+      currentView = view;
+      document.getElementById('btnTree').classList.toggle('btn-active', view === 'tree');
+      document.getElementById('btnList').classList.toggle('btn-active', view === 'list');
+      document.getElementById('tree').classList.toggle('hidden', view !== 'tree');
+      document.getElementById('listView').classList.toggle('hidden', view !== 'list');
+      refresh();
+    }
+
+    function refresh() {
+      if (currentView === 'list') renderList();
+      else filterTree();
+    }
+
+    // === 事件绑定 ===
+    document.getElementById('btnTree').addEventListener('click', () => switchView('tree'));
+    document.getElementById('btnList').addEventListener('click', () => switchView('list'));
+    document.getElementById('searchInput').addEventListener('input', refresh);
+    document.getElementById('clearSearch').addEventListener('click', () => {
+      document.getElementById('searchInput').value = '';
+      refresh();
+    });
+    document.getElementById('sortSelect').addEventListener('change', refresh);
+    document.getElementById('timeFilter').addEventListener('change', () => {
+      document.getElementById('customRange').classList.toggle('hidden',
+        document.getElementById('timeFilter').value !== 'custom');
+      if (document.getElementById('timeFilter').value !== 'custom') refresh();
+    });
+    document.getElementById('applyRange').addEventListener('click', refresh);
+
+    // === 初始化 ===
+    initTree();
+    refresh();
+  </script>
+</body>
+</html>
