@@ -516,10 +516,12 @@ def generate_statistics(mp3_access_map):
     # print("html_content placeholders:", re.findall(r'\{[^}]*\}', html_content))
 
     # 写入 HTML 文件
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.join(script_dir, '..', '..')
+    # script_dir = os.path.dirname(os.path.abspath(__file__))
+    # project_root = os.path.join(script_dir, '..', '..')
     output_paths = [
-        os.path.join(project_root, 'demo', 'wind-sum', 'sum.html'),
+        r'H:\tmp\local\wind-sum\sum.html',
+        r'I:\files\wind-sum\sum.html'
+        # os.path.join(project_root, 'demo', 'wind-sum', 'sum.html'),
     ]
 
     for path in output_paths:
