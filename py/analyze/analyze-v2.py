@@ -71,7 +71,7 @@ def scan_chfs_directory(root_path, base_name='FILES'):
                 file_key = f"{rel_dir}/{file}".replace('\\', '/')
             
             # 过滤掉特定文件
-            if file.lower() in ['desktop.ini'] or file.lower().endswith('mk.txt'):
+            if file.lower() in ['desktop.ini'] or file.lower().endswith('mk.txt') or file.lower().endswith('.srt'):
                 continue
             
             # 查找对应的预览图 (同目录下的任意图片)
@@ -138,8 +138,8 @@ def process_log(log_file):
             if 'wind-sum' in files_part or files_part.lower().endswith('desktop.ini') or files_part.lower().endswith('.mk.txt'):
                 continue
             
-            # 构建 key (相对于 FILES 的路径)
-            key = files_part
+            # 构建 key (相对于 FILES 的路径) - 规范化路径
+            key = files_part.replace('\\', '/').strip()
             
             if key in mp3_access_map:
                 last_access_time = mp3_access_map[key].split(',')[-1]
@@ -237,15 +237,38 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         if not isinstance(current_dir['files'], list):
             current_dir['files'] = []
         
-        current_dir['files'].append({
-            'name': file_name,
-            'count': value['count'],
-            'times': formatted_times,
-            'exists': value['exists'],
-            'preview': preview_url,
-            'size': value['size'],
-            'is_image': value.get('is_image', False)
-        })
+        # 检查是否已存在同名文件，如果存在则合并访问记录
+        existing_file = None
+        for f in current_dir['files']:
+            if f['name'] == file_name:
+                existing_file = f
+                break
+        
+        if existing_file:
+            # 合并访问记录
+            existing_file['count'] += value['count']
+            existing_file['times'].extend(formatted_times)
+            # 去重并排序时间
+            existing_file['times'] = sorted(list(set(existing_file['times'])))
+            existing_file['count'] = len(existing_file['times'])
+            # 更新其他字段（保留已有的非空值）
+            if not existing_file.get('preview') and preview_url:
+                existing_file['preview'] = preview_url
+            if value['exists']:
+                existing_file['exists'] = True
+            if value['size'] > existing_file.get('size', 0):
+                existing_file['size'] = value['size']
+        else:
+            # 添加新文件
+            current_dir['files'].append({
+                'name': file_name,
+                'count': value['count'],
+                'times': formatted_times,
+                'exists': value['exists'],
+                'preview': preview_url,
+                'size': value['size'],
+                'is_image': value.get('is_image', False)
+            })
     
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
