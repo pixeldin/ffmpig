@@ -24,16 +24,39 @@ for /f "tokens=1-3 delims=:. " %%a in ("%time%") do (
 set "hour=%hour: =0%"
 echo ========= 程序启动时间: %hour%:%minute%:%second% =========
 
+echo ========================================
+echo 文件访问日志分析工具 (增强版 v2)
+echo ========================================
+echo.
+
+REM 配置参数
+set LOG_FILE=E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log
+set CHFS_ROOT=I:\files
+set CHFS_URL=http://192.168.28.67:9527
+
+echo 日志文件: %LOG_FILE%
+echo CHFS 根目录: %CHFS_ROOT%
+echo CHFS URL: %CHFS_URL%
+
 rem 更新60次(120秒 * 60 =2小时)后退出
 set "counter=60"
 :loop
     if %counter% LEQ 0 goto endloop
     echo --------- Update into summary ---------
     REM 提取目标日志
-    type "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log" | findstr "vvv=1" > "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+    type "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log" | findstr "vvv=1" > "%LOG_FILE%"
 
     REM 运行 analyze.py
-    python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze.py" "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+    @REM python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze.py" "E:\Developer\nginx\nginx-1.22.1\logs\tar_chfs.log"
+    python.exe "E:\Developer\pix-ffmpig\py\analyze\analyze-v2.py" "%LOG_FILE%" "%CHFS_ROOT%" "%CHFS_URL%"
+
+    for /f "tokens=1-3 delims=:. " %%a in ("%time%") do (
+    set "hour=%%a"
+    set "minute=%%b"
+    set "second=%%c"
+)
+    set "hour=%hour: =0%"
+    echo ========= 更新日志时间: %hour%:%minute%:%second% =========
     
     set /a counter-=1
     rem 每120秒执行一次刷新
@@ -54,13 +77,13 @@ if %errorlevel% equ 0 (
 
 echo -----------------------------
 
-tasklist /fi "imagename eq chfs.exe" | findstr /i "chfs.exe" > nul
-if %errorlevel% equ 0 (
-    echo === chfs.exe 进程存在，正在终止...
-    taskkill /f /t /im chfs.exe
-) else (
-    echo === 未找到 chfs.exe 进程。
-)
+rem tasklist /fi "imagename eq chfs.exe" | findstr /i "chfs.exe" > nul
+rem if %errorlevel% equ 0 (
+rem     echo === chfs.exe 进程存在，正在终止...
+rem     taskkill /f /t /im chfs.exe
+rem ) else (
+rem     echo === 未找到 chfs.exe 进程。
+rem )
 
 echo -----------------------------
 
