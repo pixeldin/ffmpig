@@ -42,6 +42,10 @@ def scan_chfs_directory(root_path, base_name='FILES'):
     
     # 第一遍：收集所有预览图
     for root, dirs, files in os.walk(root_path):
+        # 过滤掉 wind-sum 目录
+        if 'wind-sum' in root.split(os.sep):
+            continue
+            
         for file in files:
             if file.lower().endswith(('.png', '.jpg', '.jpeg')):
                 rel_dir = os.path.relpath(root, root_path)
@@ -53,6 +57,10 @@ def scan_chfs_directory(root_path, base_name='FILES'):
     for root, dirs, files in os.walk(root_path):
         rel_dir = os.path.relpath(root, root_path)
         
+        # 过滤掉 wind-sum 目录
+        if 'wind-sum' in rel_dir.split(os.sep):
+            continue
+        
         for file in files:
             full_path = os.path.join(root, file)
             
@@ -61,6 +69,10 @@ def scan_chfs_directory(root_path, base_name='FILES'):
                 file_key = file
             else:
                 file_key = f"{rel_dir}/{file}".replace('\\', '/')
+            
+            # 过滤掉特定文件
+            if file.lower() in ['desktop.ini'] or file.lower().endswith('mk.txt'):
+                continue
             
             # 查找对应的预览图 (同目录下的任意图片)
             preview_file = None
@@ -121,6 +133,10 @@ def process_log(log_file):
             
             # 提取 FILES 之后的完整路径
             files_part = mp3_path.split('/FILES/')[1]
+            
+            # 过滤掉特定文件和目录
+            if 'wind-sum' in files_part or files_part.lower().endswith('desktop.ini') or files_part.lower().endswith('.mk.txt'):
+                continue
             
             # 构建 key (相对于 FILES 的路径)
             key = files_part
@@ -575,6 +591,13 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
       files = filterByVisit(files);
       files = filterByTime(files);
       files = sortFiles(files);
+      
+      // 统计信息
+      const totalFiles = files.length;
+      const visitedFiles = files.filter(f => f.count > 0).length;
+      const unvisitedFiles = files.filter(f => f.count === 0).length;
+      const uniquePaths = new Set(files.map(f => f.path)).size;
+      
       const tbody = document.getElementById('listBody');
       const mobileCards = document.getElementById('mobileCards');
       tbody.innerHTML = '';
@@ -636,7 +659,7 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         `;
         mobileCards.appendChild(card);
       }});
-      document.getElementById('resultCount').textContent = `共 ${{files.length}} 个文件`;
+      document.getElementById('resultCount').textContent = `共 ${{totalFiles}} 个文件 | ${{uniquePaths}} 个目录 | 已访问: ${{visitedFiles}} | 未访问: ${{unvisitedFiles}}`;
     }}
 
     // === 树形视图渲染 ===
@@ -736,12 +759,20 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
 
       const hasFilter = keyword || rangeStart || rangeEnd || visitFilter !== 'all';
       if (!hasFilter) {{
-        const count = document.querySelectorAll('#tree .file-item').length;
-        document.getElementById('resultCount').textContent = `共 ${{count}} 个文件`;
+        const allFileItems = document.querySelectorAll('#tree .file-item');
+        const totalFiles = allFileItems.length;
+        const visitedFiles = Array.from(allFileItems).filter(el => parseInt(el.getAttribute('data-count')) > 0).length;
+        const unvisitedFiles = totalFiles - visitedFiles;
+        const uniquePaths = new Set(Array.from(allFileItems).map(el => el.getAttribute('data-path'))).size;
+        document.getElementById('resultCount').textContent = `共 ${{totalFiles}} 个文件 | ${{uniquePaths}} 个目录 | 已访问: ${{visitedFiles}} | 未访问: ${{unvisitedFiles}}`;
         return;
       }}
 
       let visibleCount = 0;
+      let visitedCount = 0;
+      let unvisitedCount = 0;
+      const visiblePaths = new Set();
+      
       // 过滤文件项
       document.querySelectorAll('#tree .file-item').forEach(el => {{
         const name = el.getAttribute('data-name');
@@ -768,6 +799,9 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         if (matchKeyword && matchTime && matchVisit) {{
           if (keyword) el.classList.add('highlight');
           visibleCount++;
+          if (count > 0) visitedCount++;
+          else unvisitedCount++;
+          if (path) visiblePaths.add(path);
         }} else {{
           el.classList.add('hidden-node');
         }}
@@ -790,7 +824,7 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         return hasVisible;
       }}
       document.querySelectorAll('#tree > .tree-node').forEach(n => processNode(n));
-      document.getElementById('resultCount').textContent = `共 ${{visibleCount}} 个文件`;
+      document.getElementById('resultCount').textContent = `共 ${{visibleCount}} 个文件 | ${{visiblePaths.size}} 个目录 | 已访问: ${{visitedCount}} | 未访问: ${{unvisitedCount}}`;
     }}
 
     // === 视图切换 ===
@@ -905,9 +939,11 @@ def main():
     print("\n[4/4] 生成 HTML 报告...")
     generate_statistics(merged_data, chfs_base_url)
     
-    print("\n" + "=" * 60)
+    print("\n" + "#" * 60)
     print("完成！")
-    print("=" * 60)
+    print("#" * 60)
+
+    print("\n")
 
 if __name__ == '__main__':
     main()
