@@ -327,12 +327,19 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
       #customRange input[type="date"] {{ flex: 1; min-width: 100px; }}
       #listView table {{ display: none; }}
       #listView .mobile-cards {{ display: flex; flex-direction: column; gap: 0.5rem; }}
-      .tree-node > span {{ padding: 0.5rem 0; }}
-      .file-item {{ padding: 0.5rem 0.25rem; }}
-      .file-item .flex {{ flex-direction: column; gap: 0.25rem; }}
+      .tree-node > span {{ padding: 0.5rem 0; font-size: 0.875rem; }}
+      .file-item {{ padding: 0.5rem 0.25rem; font-size: 0.875rem; }}
+      .file-item .flex {{ flex-direction: column; gap: 0.5rem; align-items: flex-start; }}
+      .file-item a {{ word-break: break-all; max-width: 100%; }}
       /* 移动端按钮优化 */
       button {{ font-size: 0.75rem; padding: 0.375rem 0.75rem; }}
-      .preview-thumb {{ margin-left: 0; margin-top: 0.5rem; }}
+      .preview-thumb {{ margin-left: 0; margin-top: 0.5rem; max-width: 100%; height: auto; }}
+      /* 移动端时间信息优化 */
+      .file-item .text-gray-500 {{ font-size: 0.75rem; word-break: break-all; }}
+      /* 确保内容不超出屏幕 */
+      #tree {{ max-width: 100%; overflow-x: hidden; }}
+      #tree ul {{ padding-left: 1rem; }}
+      #tree .file-item {{ max-width: 100%; overflow-x: hidden; }}
     }}
     @media (min-width: 641px) {{
       #listView .mobile-cards {{ display: none; }}
@@ -717,15 +724,17 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
             fileLi.setAttribute('data-times', file.times.join(','));
             fileLi.setAttribute('data-count', file.count);
             fileLi.innerHTML = `
-              <div class="flex justify-between items-center flex-wrap gap-2">
-                <div class="flex items-center gap-2 flex-wrap">
+              <div class="file-item-content">
+                <div class="file-item-top">
                   <a href="${{fileUrl}}" ${{onclickAttr}} target="_blank" class="text-blue-600 hover:underline break-all">${{file.name}}</a>
                   ${{copyButtonHtml}}
-                  ${{previewHtml}}
                 </div>
-                <span class="text-gray-500 text-sm whitespace-nowrap">
-                  ${{timesHtml}}
-                </span>
+                <div class="file-item-bottom">
+                  ${{previewHtml}}
+                  <span class="text-gray-500 text-sm file-times">
+                    ${{timesHtml}}
+                  </span>
+                </div>
               </div>
             `;
             parentElement.appendChild(fileLi);
@@ -913,13 +922,17 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         r'I:\files\wind-sum\sum-v2.html'
     ]
     
+    # 先把双花括号替换回单花括号（因为不再使用 .format()），然后替换占位符
+    final_html = html_content.replace('{{', '{').replace('}}', '}')
+    final_html = final_html.replace('{0}', current_time).replace('{1}', log_data_json).replace('{2}', chfs_base_url)
+    
     for path in output_paths:
         directory = os.path.dirname(path)
         if directory and not os.path.exists(directory):
             print(f"目录不存在: {directory}")
             continue
         with open(path, 'w', encoding='utf-8') as file:
-            file.write(html_content.format(current_time, log_data_json, chfs_base_url))
+            file.write(final_html)
         print(f"HTML 文件已生成: {path}")
 
 
