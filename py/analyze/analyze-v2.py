@@ -478,10 +478,39 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
       document.body.style.overflow = ''; // 恢复滚动
     }}
     
-    // 复制链接到剪贴板
-    function copyLink(url, button) {{
-      const linkWithVvv = url + '&vvv=1';
-      navigator.clipboard.writeText(linkWithVvv).then(() => {{
+    // 复制链接到剪贴板（兼容 PC 和移动端）
+    function copyToClipboard(text) {{
+      // 优先使用 Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {{
+        return navigator.clipboard.writeText(text);
+      }}
+      
+      // 降级方案：使用传统的 document.execCommand
+      return new Promise((resolve, reject) => {{
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {{
+          const successful = document.execCommand('copy');
+          document.body.removeChild(textarea);
+          if (successful) {{
+            resolve();
+          }} else {{
+            reject(new Error('复制命令执行失败'));
+          }}
+        }} catch (err) {{
+          document.body.removeChild(textarea);
+          reject(err);
+        }}
+      }});
+    }}
+    
+    // 复制预览链接（只带 ?v=1）
+    function copyPreview(url, button) {{
+      copyToClipboard(url).then(() => {{
         const originalText = button.textContent;
         button.textContent = '已复制';
         button.classList.add('bg-green-500');
@@ -494,6 +523,34 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
       }}).catch(err => {{
         alert('复制失败: ' + err);
       }});
+    }}
+    
+    // Pick选中链接（带 ?v=1&vvv=1）
+    function copyPick(url, button) {{
+      const pickUrl = url + '&vvv=1';
+      
+      // 弹出确认对话框
+      if (confirm('确认要选中这个视频吗？\\n\\n点击"确定"将复制链接并在新页面打开视频')) {{
+        // 用户点击确认，复制链接
+        copyToClipboard(pickUrl).then(() => {{
+          const originalText = button.textContent;
+          button.textContent = '已复制';
+          button.classList.add('bg-green-500');
+          button.classList.remove('bg-green-600', 'hover:bg-green-700');
+          
+          // 在新页面打开视频
+          window.open(pickUrl, '_blank');
+          
+          setTimeout(() => {{
+            button.textContent = originalText;
+            button.classList.remove('bg-green-500');
+            button.classList.add('bg-green-600', 'hover:bg-green-700');
+          }}, 1500);
+        }}).catch(err => {{
+          alert('复制失败: ' + err);
+        }});
+      }}
+      // 用户点击取消，不做任何操作
     }}
     
     // ESC 键关闭模态框
@@ -646,9 +703,10 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
         const fileUrl = videoUrl;
         const onclickAttr = isVideo ? `onclick="showVideo('${{videoUrl}}', event); return false;"` : '';
         
-        // 为视频文件添加复制按钮
+        // 为视频文件添加两个复制按钮
         const copyButtonHtml = isVideo 
-          ? `<button onclick="copyLink('` + videoUrl + `', this)" class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0">选中复制</button>` 
+          ? `<button onclick="copyPreview('` + videoUrl + `', this)" class="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap shrink-0">复制预览</button>
+             <button onclick="copyPick('` + videoUrl + `', this)" class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors whitespace-nowrap shrink-0">Pick选中</button>` 
           : '';
         
         // 桌面端表格行
@@ -679,7 +737,7 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
           ${{cardPreview}}
           <div class="flex flex-col gap-2">
             <div class="font-medium break-all"><a href="${{fileUrl}}" ${{onclickAttr}} target="_blank" class="text-blue-600 hover:underline">${{f.name}}</a></div>
-            ${{copyButtonHtml ? `<div>${{copyButtonHtml}}</div>` : ''}}
+            ${{copyButtonHtml ? `<div class="flex gap-2 flex-wrap">${{copyButtonHtml}}</div>` : ''}}
           </div>
           <div class="text-xs text-gray-400 mt-2 break-all">${{f.path}}</div>
           <div class="flex items-center mt-2 text-xs text-gray-500">
@@ -712,9 +770,10 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
             const fileUrl = videoUrl;
             const onclickAttr = isVideo ? `onclick="showVideo('${{videoUrl}}', event); return false;"` : '';
             
-            // 为视频文件添加复制按钮
+            // 为视频文件添加两个复制按钮
             const copyButtonHtml = isVideo 
-              ? `<button onclick="copyLink('` + videoUrl + `', this)" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap">选中复制</button>` 
+              ? `<button onclick="copyPreview('` + videoUrl + `', this)" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap">复制预览</button>
+                 <button onclick="copyPick('` + videoUrl + `', this)" class="ml-2 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors whitespace-nowrap">Pick选中</button>` 
               : '';
             
             const fileLi = document.createElement('li');
