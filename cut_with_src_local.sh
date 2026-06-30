@@ -354,6 +354,12 @@ mark as total segment, from $K_FRAME($1)-$2(s)."
   rm $FILE_PREFIX*-smartcut-*tmp.${FILE_SUFFIX}
 }
 
+# encode_segment_for_compress $start $end
+function encode_segment_for_compress() {
+  local duration=$(echo "scale=5; ${2}-${1}" | bc | sed 's/^\./0./')
+  ffmpeg -hide_banner -ss $1 -i ${FILE_NAME} -t $duration -map '0:0' -c:v libx264 -preset faster -vf "scale=$resolution,format=yuv420p" -pix_fmt yuv420p -profile:v high -level 4.2 -b:v 9000k -maxrate 9500k -r $RFR -video_track_timescale $TB -bufsize 3M '-disposition:0' default -map '0:1' -c:a aac -b:a 256k '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $FILE_PREFIX-p${idx}.${FILE_SUFFIX}
+}
+
 #echo -e "\n\e[31;40mfilename: $input, suffix: $FILE_SUFFIX\e[0m\n"
 Ilog "Call job with multiple segment index: [${segs}], origin video: ${FILE_NAME}, state of compress: ${zip}!"
 Wlog "#############################"
@@ -379,7 +385,11 @@ for cp in $seg; do
   total_ts=$((total_ts + diff))
 
   #lossless logic / params: src, from, to, idx
-  loss_less_process $start $end
+  if [ "$zip" = "-1" ]; then
+    loss_less_process $start $end
+  else
+    encode_segment_for_compress $start $end
+  fi
 done
 
 
@@ -399,7 +409,7 @@ function compress() {
   # -preset [fast/faster/veryfast/superfast/ultrafast] 默认medium,
   # 画质逐级降低,压缩比逐级下降 
   #ffmpeg -i $1 -preset fast -vf scale=2048:1080 -maxrate 8000k -bufsize 1.6M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
-  ffmpeg -i $1 -preset faster -vf scale=$resolution -b:v 9000k -maxrate 9500k -r $RFR -video_track_timescale $TB -bufsize 3M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
+  ffmpeg -i $1 -preset faster -vf "scale=$resolution,format=yuv420p" -pix_fmt yuv420p -profile:v high -level 4.2 -b:v 9000k -maxrate 9500k -r $RFR -video_track_timescale $TB -bufsize 3M -c:a copy cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
 
   size_info=$(get_file_size cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX})
   Wlog "###### Done compressing ${FILE_PREFIX}, Src-${src_size_info} / Zipped-${size_info}, video duration: ${minutes}min${seconds}s."
@@ -420,11 +430,8 @@ if [ $idx -lt 2 ]; then
   #break_for_debug "skip single compressing"
 
   # compress
-  Ilog "------- With single seg, be ready to compress.-------"
-  # rename and zip
-  mv ${FILE_PREFIX}-p${idx}.${FILE_SUFFIX} $single_ret.${FILE_SUFFIX}
-  compress $single_ret.${FILE_SUFFIX}
-  rm $single_ret.${FILE_SUFFIX}
+  Ilog "------- With single seg, already compressed during cutting.-------"
+  mv ${FILE_PREFIX}-p${idx}.${FILE_SUFFIX} cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}
   PrintJobTime ${FILE_NAME}
   exit 0
 fi
@@ -440,13 +447,19 @@ fi
 #break_for_debug "skip_merging"
 
 #(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -protocol_whitelist file,pipe,fd -f concat -safe 0 -i pipe: -c copy $ret
-(for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
+if [ "$zip" = "-1" ]; then
+  (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $ret
+else
+  zipped_ret="cup-${FILE_PREFIX}-${idx}_zipped.${FILE_SUFFIX}"
+  (for i in $(seq 1 ${idx}); do echo "file file:'${FILE_PREFIX}-p${i}.${FILE_SUFFIX}'"; done) | ffmpeg -hide_banner -f concat -safe 0 -protocol_whitelist 'file,pipe,fd' -i - -map '0:0' '-c:0' copy '-disposition:0' default -map '0:1' '-c:1' copy '-disposition:1' default -movflags '+faststart' -default_mode infer_no_subs -ignore_unknown -f ${T_FORMAT} -y $zipped_ret
+fi
 
 Ilog "###### Done merge for ${FILE_PREFIX}, total segment count: ${idx}, total video duration: ${total_ts} = ${minutes}min${seconds}s ."
 
 # 归档临时文件
 #mkdir -p seg_list_${FILE_PREFIX}
 #mv ${FILE_PREFIX}-p*.${FILE_SUFFIX} seg_list_${FILE_PREFIX}
+
 rm -f ${FILE_PREFIX}-p*.${FILE_SUFFIX}
 
 # 压缩视频
@@ -456,7 +469,5 @@ if [ "$zip" = "-1" ]; then
   exit 0
 fi
 
-compress cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}
-# 删除剪切中间结果
-rm cup-${FILE_PREFIX}-${idx}_tozip.${FILE_SUFFIX}
+Wlog "###### Done compressing ${FILE_PREFIX} during final merge, output: ${zipped_ret}, video duration: ${minutes}min${seconds}s."
 PrintJobTime ${FILE_NAME}
