@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件访问日志</title>
+  <link rel="stylesheet" href="style.css?v=20260702-2">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div class="header-copy">
+        <p class="eyebrow">CHFS Report</p>
+        <h1>文件访问日志</h1>
+        <p id="updatedAt">等待数据加载</p>
+      </div>
+      <div class="header-actions">
+        <span id="resultCount" class="result-count"></span>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="切换深色模式" aria-pressed="false">
+          <span class="theme-toggle-icon" aria-hidden="true">☀</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="toolbar" aria-label="筛选工具">
+      <div class="search-field">
+        <span aria-hidden="true">⌕</span>
+        <input id="searchInput" type="search" placeholder="搜索文件名或路径">
+      </div>
+      <button id="clearSearch" class="secondary-button" type="button">清除</button>
+      <select id="viewSelect" aria-label="视图">
+        <option value="tree">树形</option>
+        <option value="list">列表</option>
+      </select>
+      <select id="visitFilter" aria-label="访问状态">
+        <option value="all">全部文件</option>
+        <option value="visited">仅已访问</option>
+        <option value="unvisited">仅未访问</option>
+      </select>
+      <select id="sortSelect" aria-label="排序">
+        <option value="default">默认排序</option>
+        <option value="count-desc">次数降序</option>
+        <option value="count-asc">次数升序</option>
+        <option value="time-desc">最近访问</option>
+        <option value="time-asc">最早访问</option>
+      </select>
+      <select id="timeFilter" aria-label="时间范围">
+        <option value="all">全部时间</option>
+        <option value="1w">最近一周</option>
+        <option value="1m">最近一月</option>
+        <option value="3m">最近三月</option>
+        <option value="custom">自定义</option>
+      </select>
+      <div id="customRange" class="custom-range hidden">
+        <input id="dateFrom" type="date" aria-label="开始日期">
+        <span>至</span>
+        <input id="dateTo" type="date" aria-label="结束日期">
+        <button id="applyRange" class="primary-button" type="button">应用</button>
+      </div>
+    </section>
+
+    <section class="content">
+      <div id="error" class="notice hidden"></div>
+      <ul id="treeView" class="tree-view"></ul>
+      <div id="listView" class="list-view hidden"></div>
+    </section>
+  </main>
+
+  <div id="imageModal" class="modal hidden" role="dialog" aria-modal="true">
+    <button class="modal-close" type="button" aria-label="关闭图片预览">&times;</button>
+    <img id="modalImage" alt="预览图片">
+  </div>
+
+  <div id="videoModal" class="modal hidden" role="dialog" aria-modal="true">
+    <button class="modal-close" type="button" aria-label="关闭视频预览">&times;</button>
+    <video id="videoPlayer" controls></video>
+  </div>
+
+  <script src="data.js?v=20260702-2"></script>
+  <script src="app.js?v=20260702-2"></script>
+</body>
+</html>

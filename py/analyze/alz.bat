@@ -1,5 +1,6 @@
 @echo off
 chcp 65001
+title windflow
 
 REM 检查并终止 nginx 进程
 tasklist /fi "imagename eq nginx.exe" | findstr /i "nginx.exe" > NUL
