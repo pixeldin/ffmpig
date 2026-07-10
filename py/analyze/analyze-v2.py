@@ -87,11 +87,22 @@ def scan_chfs_directory(root_path, base_name='FILES'):
                 # 选择目录中的第一张图片作为预览
                 preview_file = preview_map[rel_dir][0]
             
+            try:
+                stat = os.stat(full_path)
+            except OSError as exc:
+                print(f"警告: 无法读取文件信息 '{full_path}': {exc}")
+                continue
+
+            modified_ts = int(stat.st_mtime)
+            modified_time = datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+
             file_map[file_key] = {
                 'exists': True,
                 'preview': preview_file,
                 'full_path': full_path,
-                'size': os.path.getsize(full_path),
+                'size': stat.st_size,
+                'modified_ts': modified_ts,
+                'modified_time': modified_time,
                 'is_image': False  # 已经过滤掉图片，这里都是非图片文件
             }
     
@@ -169,6 +180,8 @@ def merge_data(file_map, access_map):
             'exists': True,
             'preview': file_info['preview'],
             'size': file_info['size'],
+            'modified_ts': file_info.get('modified_ts'),
+            'modified_time': file_info.get('modified_time'),
             'count': 0,
             'times': [],
             'is_image': file_info.get('is_image', False)
@@ -187,6 +200,8 @@ def merge_data(file_map, access_map):
                 'exists': False,
                 'preview': None,
                 'size': 0,
+                'modified_ts': None,
+                'modified_time': None,
                 'count': len(times),
                 'times': times
             }
@@ -257,6 +272,13 @@ def build_report_payload(merged_data, chfs_base_url='http://192.168.28.67:9527')
                 existing_file['exists'] = True
             if value.get('size', 0) > existing_file.get('size', 0):
                 existing_file['size'] = value.get('size', 0)
+            incoming_modified_ts = value.get('modified_ts')
+            existing_modified_ts = existing_file.get('modifiedTs')
+            if incoming_modified_ts is not None and (
+                existing_modified_ts is None or incoming_modified_ts > existing_modified_ts
+            ):
+                existing_file['modifiedTs'] = incoming_modified_ts
+                existing_file['modifiedTime'] = value.get('modified_time')
         else:
             current_dir['files'].append({
                 'name': file_name,
@@ -265,6 +287,8 @@ def build_report_payload(merged_data, chfs_base_url='http://192.168.28.67:9527')
                 'exists': value.get('exists', False),
                 'preview': preview_url,
                 'size': value.get('size', 0),
+                'modifiedTs': value.get('modified_ts'),
+                'modifiedTime': value.get('modified_time'),
                 'is_image': value.get('is_image', False)
             })
 

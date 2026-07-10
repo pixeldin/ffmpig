@@ -40,6 +40,8 @@
             path,
             times,
             count: Number(file.count || 0),
+            modifiedTs: file.modifiedTs ?? null,
+            modifiedTime: file.modifiedTime ?? null,
             lastTime: times.length ? times[times.length - 1] : "",
           });
         });
@@ -103,7 +105,18 @@
     if (sort === "count-asc") files = files.sort((a, b) => a.count - b.count);
     if (sort === "time-desc") files = files.sort((a, b) => String(b.lastTime).localeCompare(String(a.lastTime)));
     if (sort === "time-asc") files = files.sort((a, b) => String(a.lastTime).localeCompare(String(b.lastTime)));
+    if (sort === "modified-desc") files = files.sort((a, b) => nullLastCompare(b.modifiedTs, a.modifiedTs));
+    if (sort === "modified-asc") files = files.sort((a, b) => nullLastCompare(a.modifiedTs, b.modifiedTs));
     return files;
+  }
+
+  function nullLastCompare(a, b) {
+    const aMissing = a === null || a === undefined || a === "";
+    const bMissing = b === null || b === undefined || b === "";
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    return Number(a) - Number(b);
   }
 
   function fileUrl(file) {
@@ -184,7 +197,11 @@
 
     const meta = document.createElement("div");
     meta.className = "file-meta";
-    meta.textContent = [file.exists === false ? "文件缺失" : "", formatSize(file.size)].filter(Boolean).join(" / ");
+    meta.textContent = [
+      file.exists === false ? "文件缺失" : "",
+      formatSize(file.size),
+      file.modifiedTime ? `更新 ${file.modifiedTime}` : "",
+    ].filter(Boolean).join(" / ");
     main.appendChild(meta);
 
     if (includePath) {
