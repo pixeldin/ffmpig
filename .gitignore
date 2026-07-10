@@ -1,0 +1,23 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environments and tooling caches
+.venv/
+venv/
+env/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime logs and generated data
+*.log
+*.db
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
