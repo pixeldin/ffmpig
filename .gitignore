@@ -15,6 +15,7 @@ env/
 # Runtime logs and generated data
 *.log
 *.db
+*/logs/*
 
 # OS and editor files
 .DS_Store
