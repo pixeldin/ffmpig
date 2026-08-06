@@ -7,6 +7,8 @@ from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
 
+from net_utils import build_chfs_url
+
 # 辅助函数：将日期时间字符串转为时间戳
 def convert_to_timestamp(input_time):
     try:
@@ -217,8 +219,11 @@ FRONTEND_DIR = Path(__file__).resolve().parent / 'report_frontend'
 FRONTEND_FILES = ['sum-v2.html', 'style.css', 'app.js']
 
 
-def build_report_payload(merged_data, chfs_base_url='http://192.168.28.67:9527'):
+def build_report_payload(merged_data, chfs_base_url=None):
     """生成前端消费的结构化报表数据。"""
+    if not chfs_base_url:
+        chfs_base_url = build_chfs_url()
+
     def nested_dict():
         return defaultdict(nested_dict)
 
@@ -345,7 +350,7 @@ def write_report_files(payload, output_dirs=None):
         print(f"前端页面已部署: {output_dir / 'sum-v2.html'}")
 
 
-def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
+def generate_statistics(merged_data, chfs_base_url=None):
     """保持旧调用名，生成报表数据并部署前端。"""
     payload = build_report_payload(merged_data, chfs_base_url)
     write_report_files(payload)
@@ -355,12 +360,12 @@ def generate_statistics(merged_data, chfs_base_url='http://192.168.28.67:9527'):
 def main():
     if len(sys.argv) < 3:
         print(f"用法: {sys.argv[0]} <log_file_path> <chfs_root_directory> [chfs_base_url]")
-        print(f"示例: {sys.argv[0]} access.log F:/FILES http://192.168.28.67:9527")
+        print(f"示例: {sys.argv[0]} access.log F:/FILES")
         sys.exit(1)
     
     log_file = sys.argv[1]
     chfs_root = sys.argv[2]
-    chfs_base_url = sys.argv[3] if len(sys.argv) > 3 else 'http://192.168.28.67:9527'
+    chfs_base_url = sys.argv[3] if len(sys.argv) > 3 else build_chfs_url()
     
     print("=" * 60)
     print("文件访问日志分析工具 (增强版 v2)")

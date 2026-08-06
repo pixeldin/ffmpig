@@ -4,10 +4,11 @@ import sys
 from pathlib import Path
 
 import report_store
+from net_utils import build_chfs_url
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "visit_stats.db"
-DEFAULT_CHFS_URL = "http://192.168.28.67:9527"
+DEFAULT_CHFS_PORT = 9527
 
 
 def load_analyze_v2():
@@ -25,7 +26,10 @@ def to_legacy_access_map(visit_summary):
     }
 
 
-def build_from_db(db_path, chfs_root, chfs_base_url=DEFAULT_CHFS_URL):
+def build_from_db(db_path, chfs_root, chfs_base_url=None):
+    if not chfs_base_url:
+        chfs_base_url = build_chfs_url(DEFAULT_CHFS_PORT)
+
     analyze_v2 = load_analyze_v2()
     conn = report_store.connect(db_path)
     try:
@@ -69,8 +73,8 @@ def build_parser():
     parser.add_argument(
         "chfs_base_url",
         nargs="?",
-        default=DEFAULT_CHFS_URL,
-        help=f"CHFS 访问基础 URL，默认 {DEFAULT_CHFS_URL}",
+        default=None,
+        help=f"CHFS 访问基础 URL；不传则自动检测本机局域网 IP 并使用端口 {DEFAULT_CHFS_PORT}",
     )
     return parser
 

@@ -122,7 +122,7 @@ def query_visit_summary(conn): ...
 ```json
 {
   "updatedAt": "2026-07-10 12:00:00",
-  "chfsBaseUrl": "http://192.168.28.67:9527",
+  "chfsBaseUrl": "http://<auto-detected-lan-ip>:9527",
   "summary": {
     "total": 100,
     "visited": 20,
@@ -328,7 +328,7 @@ CREATE INDEX IF NOT EXISTS idx_file_visit_access_ts
 
 ```bat
 type access_chfs.log | findstr "vvv=1" > tar_chfs.log
-python.exe analyze-v2.py tar_chfs.log I:\files http://192.168.28.67:9527
+python.exe analyze-v2.py tar_chfs.log I:\files
 ```
 
 第二阶段后建议改为:
@@ -341,14 +341,14 @@ python.exe "E:\Developer\pix-ffmpig\py\analyze\ingest_log.py" tail ^
 python.exe "E:\Developer\pix-ffmpig\py\analyze\build_report.py" ^
   "E:\Developer\pix-ffmpig\py\analyze\visit_stats.db" ^
   "I:\files" ^
-  "http://192.168.28.67:9527"
+  "http://<auto-detected-lan-ip>:9527"
 ```
 
 过渡期也可以先保留 `analyze-v2.py` 生成报表:
 
 ```bat
 python.exe ingest_log.py tail access_chfs.log visit_stats.db
-python.exe analyze-v2.py --from-db visit_stats.db I:\files http://192.168.28.67:9527
+python.exe analyze-v2.py --from-db visit_stats.db I:\files
 ```
 
 ## 9. 代码分段计划
@@ -523,10 +523,10 @@ CHFS 根目录:
 I:\files
 
 CHFS URL:
-http://192.168.28.67:9527
+自动检测本机局域网 IP 后生成，例如:
+http://<auto-detected-lan-ip>:9527
 
 前端输出目录:
 H:\tmp\local\wind-sum
 I:\files\wind-sum
 ```
-

@@ -6,7 +6,6 @@ $AccessLogFile = "E:\Developer\nginx\nginx-1.22.1\logs\access_chfs.log"
 $ProjectHome = "E:\Developer\pix-ffmpig"
 $VisitDb = "E:\Developer\pix-ffmpig\py\analyze\visit_stats.db"
 $ChfsRoot = "I:\files"
-$ChfsUrl = "http://192.168.28.67:9527"
 $Counter = 60
 $IntervalSeconds = 120
 
@@ -63,7 +62,7 @@ try {
     Write-Host "访问日志: $AccessLogFile"
     Write-Host "SQLite数据库: $VisitDb"
     Write-Host "CHFS根目录: $ChfsRoot"
-    Write-Host "CHFS访问地址: $ChfsUrl"
+    Write-Host "CHFS访问地址: 自动检测本机局域网IP"
     Write-Host ""
 
     Test-RequiredPath "$ProjectHome\py\analyze\ingest_log.py" "ingest_log.py"
@@ -107,8 +106,7 @@ try {
         Invoke-Step "python.exe" @(
             "$ProjectHome\py\analyze\report_builder.py",
             $VisitDb,
-            $ChfsRoot,
-            $ChfsUrl
+            $ChfsRoot
         ) "报表生成失败"
 
         Write-RunTime "更新日志时间"
